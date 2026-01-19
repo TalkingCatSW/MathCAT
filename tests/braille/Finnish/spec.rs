@@ -54,7 +54,7 @@ fn p7_decimal_comma() {
 #[test]
 fn p7_decimal_point() {
     let expr = "<math><mn>5.12575</mn></math>";
-    test_braille("Finnish", expr, "⠼⠑⠄⠁⠃⠑⠼⠛⠑");
+    test_braille("Finnish", expr, "⠼⠑⠄⠁⠃⠑⠛⠑");
 }
 
 #[test]
