@@ -1934,8 +1934,7 @@ fn p51_set_with_closure() {
 <mo>‾</mo>
 </mover>
 </math>";
-    test_braille("Finnish", expr, "⠈⠙⠠⠁⠀⠶⠠⠁⠱⠀⠳⠦⠦⠠⠭⠀⠤⠠⠁⠴⠱");
-    // Fixed: There was a "set minus" used here (1256 36), which can't be produced by MathML. It is now a normal minus. 
+    test_braille("Finnish", expr, "⠈⠙⠠⠁⠀⠶⠠⠁⠱⠀⠳⠦⠦⠠⠭⠀⠳⠡⠠⠁⠴⠱");
 }
 
 #[test]
