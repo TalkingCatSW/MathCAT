@@ -302,24 +302,20 @@ impl IsNode {
         }
     }
 
-    #[inline]
     pub fn is_mathml(elem: Element) -> bool {
         // doesn't check MATHML_FROM_NAME_ATTR because we are interested in if it is an intent.
         return ALL_MATHML_ELEMENTS.contains(name(elem));
     }
 
     #[allow(non_snake_case)]
-    #[inline]
     pub fn is_2D(elem: Element) -> bool {
         return MATHML_2D_NODES.contains(elem.attribute_value(MATHML_FROM_NAME_ATTR).unwrap_or(name(elem)));
     }
 
-    #[inline]
     pub fn is_scripted(elem: Element) -> bool {
         return is_scripted_node(elem.attribute_value(MATHML_FROM_NAME_ATTR).unwrap_or(name(elem)));
     }
 
-    #[inline]
     pub fn is_modified(elem: Element) -> bool {
         return is_modified_node(elem.attribute_value(MATHML_FROM_NAME_ATTR).unwrap_or(name(elem)));
     }
@@ -336,7 +332,6 @@ static ALL_MATHML_ELEMENTS: phf::Set<&str> = phf_set!{
     "mrow", "a", "mfenced", "mtable", "mtr", "mlabeledtr",
 };
 
-#[inline]
 fn is_leaf_node(s: &str) -> bool {
     matches!(s,
         "mi" | "mo" | "mn" | "mtext" | "ms" | "mspace" | "mglyph" |
@@ -359,7 +354,6 @@ fn is_scripted_node(s: &str) -> bool {
     matches!(s, "msub" | "msup" | "msubsup" | "mmultiscripts")
 }
 
-#[inline]
 pub fn is_leaf(element: Element) -> bool {
     return is_leaf_node(name(element));
 }

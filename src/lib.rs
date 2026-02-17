@@ -108,7 +108,6 @@ pub fn are_strs_canonically_equal_with_locale(test: &str, target: &str, ignore_a
 }
 
 /// sets locale to be US standard
-#[inline]
 pub fn are_strs_canonically_equal(test: &str, target: &str, ignore_attrs: &[&str]) -> bool {
     return are_strs_canonically_equal_with_locale(test, target, ignore_attrs, ", \u{00A0}\u{202F}", ".");
 }

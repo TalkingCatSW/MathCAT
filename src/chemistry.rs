@@ -109,7 +109,6 @@ fn has_inherited_property(mathml: Element, property: &str) -> bool {
     return false;
 }
 
-#[inline]
 pub fn is_chemistry_off(mathml: Element) -> bool {
     if has_chem_intent(mathml, ":chemical-formula") || has_chem_intent(mathml, ":chemical-equation") {
         return false;
@@ -1811,7 +1810,6 @@ static CHEMICAL_ELEMENT_ATOMIC_NUMBER: phf::Map<&str, u32> = phf_map! {
     "Rg" => 111, "Cn" => 112, "Nh" => 113, "Fl" => 114, "Mc" => 115, "Lv" => 116, "Ts" => 117, "Og" => 118, 
 };
 
-#[inline]
 pub fn is_chemical_element(node: Element) -> bool {
 	// FIX: allow name to be in an mrow (e.g., <mi>N</mi><mi>a</mi>
 	let name = name(node);

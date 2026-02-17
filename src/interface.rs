@@ -78,7 +78,6 @@ pub fn init_panic_handler() {
     }));
 }
 
-#[inline]
 pub fn report_any_panic<T>(result: Result<Result<T, Error>, Box<dyn std::any::Any + Send>>) -> Result<T, Error> {
     match result {
         Ok(val) => val,
@@ -137,7 +136,6 @@ pub fn set_rules_dir(dir: impl AsRef<str>) -> Result<()> {
 }
 
 /// Returns the version number (from Cargo.toml) of the build
-#[inline]
 pub fn get_version() -> String {
     enable_logs();
     const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -660,7 +658,6 @@ pub fn get_supported_languages() -> Result<Vec<String>> {
 /// Copy (recursively) the (MathML) element and return the new one.
 /// The Element type does not copy and modifying the structure of an element's child will modify the element, so we need a copy
 /// Convert the returned error from set_mathml, etc., to a useful string for display
-#[inline]
 pub fn copy_mathml(mathml: Element) -> Element {
     // If it represents MathML, the 'Element' can only have Text and Element children along with attributes
     let children = mathml.children();
@@ -737,7 +734,6 @@ fn add_ids(mathml: Element) -> Element {
     }
 }
 
-#[inline]
 pub fn get_element(package: &Package) -> Element<'_> {
     enable_logs();
     let doc = package.as_document();

@@ -319,24 +319,20 @@ impl<'a, 'op:'a> StackInfo<'a, 'op> {
 }
 
 
-#[inline]
 pub fn create_mathml_element<'a>(doc: &Document<'a>, name: &str) -> Element<'a> {
 	return doc.create_element(sxd_document::QName::with_namespace_uri(
 		Some("http://www.w3.org/1998/Math/MathML"),
 		name));
 }
 
-#[inline]
 pub fn is_fence(mo: Element) -> bool {
 	return CanonicalizeContext::find_operator(None, mo, None, None, None).is_fence();
 }
 
-#[inline]
 pub fn is_relational_op(mo: Element) -> bool {
 	return CanonicalizeContext::find_operator(None, mo, None, None, None).priority == *EQUAL_PRIORITY;
 }
 
-#[inline]
 pub fn set_mathml_name(element: Element, new_name: &str) {
 	element.set_name(QName::with_namespace_uri(Some("http://www.w3.org/1998/Math/MathML"), new_name));
 }
@@ -4497,14 +4493,12 @@ pub fn add_attrs<'a>(mathml: Element<'a>, attrs: &[Attribute]) -> Element<'a> {
 }
 
 
-#[inline]
 pub fn name(node: Element<'_>) -> &str {
 	return node.name().local_part();
 }
 
 /// The child of a non-leaf element must be an element
 // Note: can't use references as that results in 'returning use of local variable'
-#[inline]
 pub fn as_element(child: ChildOfElement) -> Element {
 	return match child {
 		ChildOfElement::Element(e) => e,
@@ -4516,7 +4510,6 @@ pub fn as_element(child: ChildOfElement) -> Element {
 
 /// The child of a leaf element must be text (previously trimmed)
 /// Note: trim() combines all the Text children into a single string
-#[inline]
 pub fn as_text(leaf_child: Element<'_>) -> &str {
 	assert!(is_leaf(leaf_child));
 	let children = leaf_child.children();
@@ -4532,7 +4525,6 @@ pub fn as_text(leaf_child: Element<'_>) -> &str {
 
 /// Returns the parent of the argument.
 /// Warning: this assumes the parent exists
-#[inline]
 pub fn get_parent(mathml: Element) -> Element {
 	return mathml.parent().unwrap().element().unwrap();
 }
@@ -4554,7 +4546,6 @@ fn create_mo<'a, 'd:'a>(doc: Document<'d>, ch: &'a str, attr_value: &str) -> Ele
 }
 
 /// return 'node' or if it is adorned, return its base (recursive)
-#[inline]
 pub fn get_possible_embellished_node(node: Element) -> Element {
 	let mut node = node;
 	while IsNode::is_modified(node) {

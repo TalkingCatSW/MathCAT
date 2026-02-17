@@ -47,7 +47,6 @@ pub fn make_quoted_string(mut string: String) -> String {
 }
 
 /// Checks the string to see if it is "quoted"
-#[inline]
 pub fn is_quoted_string(str: &str) -> bool {
     if str.len() < N_BYTES_NO_EVAL_QUOTE_CHAR {
         return false;
@@ -58,7 +57,6 @@ pub fn is_quoted_string(str: &str) -> bool {
 
 /// Converts 'string' into a "quoted" string -- use is_quoted_string and unquote_string
 /// IMPORTANT: this assumes the string is quoted -- no check is made
-#[inline]
 pub fn unquote_string(str: &str) -> &str {
     return &str[..str.len()-N_BYTES_NO_EVAL_QUOTE_CHAR];
 }
@@ -231,7 +229,6 @@ pub fn as_vec_checked(value: &Yaml) -> Result<&Vec<Yaml>> {
 }
 
 /// Returns the Yaml as a `&str` or an error if it isn't.
-#[inline]
 pub fn as_str_checked(yaml: &Yaml) -> Result<&str> {
     return yaml.as_str().ok_or_else(|| yaml_type_err(yaml, "string"));
 }
