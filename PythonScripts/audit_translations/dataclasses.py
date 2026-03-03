@@ -27,10 +27,6 @@ class RuleInfo:
         Raw YAML block for this rule (used for reporting/snippets).
     data : Optional[Any]
         Parsed YAML node for the rule; used for structural diffs.
-    has_untranslated_text : bool
-        True if the rule contains lowercase t/ot/ct/etc. values.
-    untranslated_keys : List[str]
-        List of untranslated text values (used for summary counts).
     untranslated_entries : List[Tuple[str, str, Optional[int]]]
         List of (key, text, line) entries extracted from lowercase translation keys.
         This drives per-issue JSONL output so each untranslated string can report
@@ -48,11 +44,17 @@ class RuleInfo:
     line_number: int
     raw_content: str
     data: Optional[Any] = None
-    has_untranslated_text: bool = False
-    untranslated_keys: List[str] = field(default_factory=list)
-    untranslated_entries: List[Tuple[str, str, Optional[int]]] = field(default_factory=list)  # (key, text, line) for JSONL output
-    line_map: Dict[str, List[int]] = field(default_factory=dict)  # Element-type -> line numbers for precise diff locations
+    untranslated_entries: List[Tuple[str, str, Optional[int]]] = field(default_factory=list)
+    line_map: Dict[str, List[int]] = field(default_factory=dict)
     audit_ignore: bool = False
+
+    @property
+    def has_untranslated_text(self) -> bool:
+        return bool(self.untranslated_entries)
+
+    @property
+    def untranslated_keys(self) -> List[str]:
+        return [entry[1] for entry in self.untranslated_entries]
 
 
 @dataclass
@@ -76,3 +78,7 @@ class ComparisonResult:
     english_rule_count: int
     translated_rule_count: int
     rule_differences: List[RuleDifference] = field(default_factory=list)  # Fine-grained diffs
+
+    @property
+    def has_issues(self) -> bool:
+        return bool(self.missing_rules or self.untranslated_text or self.extra_rules or self.rule_differences)

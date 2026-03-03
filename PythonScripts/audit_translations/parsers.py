@@ -120,8 +120,6 @@ def parse_rules_file(content: str, data: Any) -> List[RuleInfo]:
     for item, raw_content, line_idx in zip(rule_items, raw_blocks, start_lines):
         rule_name = str(item.get("name"))
         tag = format_tag(item.get("tag"))
-        untranslated_entries = find_untranslated_text_entries(item)
-        untranslated = [entry[1] for entry in untranslated_entries]
         rule_key = f"{rule_name}|{tag or 'unknown'}"
         rules.append(RuleInfo(
             name=rule_name,
@@ -130,9 +128,7 @@ def parse_rules_file(content: str, data: Any) -> List[RuleInfo]:
             line_number=line_idx + 1,
             raw_content=raw_content,
             data=item,
-            has_untranslated_text=len(untranslated) > 0,
-            untranslated_keys=untranslated,
-            untranslated_entries=untranslated_entries,
+            untranslated_entries=find_untranslated_text_entries(item),
             line_map=build_line_map(item),
             audit_ignore=has_audit_ignore(raw_content)
         ))
@@ -161,8 +157,6 @@ def parse_unicode_file(content: str, data: Any) -> List[RuleInfo]:
     raw_blocks = build_raw_blocks(lines, start_lines)
 
     for (char_key, value), raw_content, line_idx in zip(entries, raw_blocks, start_lines):
-        untranslated_entries = find_untranslated_text_entries(value)
-        untranslated = [entry[1] for entry in untranslated_entries]
         rules.append(RuleInfo(
             name=None,
             tag=None,
@@ -170,9 +164,7 @@ def parse_unicode_file(content: str, data: Any) -> List[RuleInfo]:
             line_number=line_idx + 1,
             raw_content=raw_content,
             data=value,
-            has_untranslated_text=len(untranslated) > 0,
-            untranslated_keys=untranslated,
-            untranslated_entries=untranslated_entries,
+            untranslated_entries=find_untranslated_text_entries(value),
             line_map=build_line_map(value),
             audit_ignore=has_audit_ignore(raw_content)
         ))

@@ -6,8 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from ..auditor import collect_issues, compare_files, console, get_yaml_files, list_languages, print_warnings
+from ..auditor import compare_files, console, get_yaml_files, list_languages
 from ..dataclasses import ComparisonResult, RuleDifference, RuleInfo
+from ..renderer import collect_issues, print_warnings
 
 
 @pytest.fixture()

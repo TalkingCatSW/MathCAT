@@ -4,7 +4,8 @@ import json
 from io import StringIO
 from pathlib import Path
 
-from ..auditor import IssueWriter, collect_issues, compare_files
+from ..auditor import compare_files
+from ..renderer import IssueWriter, collect_issues
 
 
 def load_jsonl(text: str) -> list[dict]:
