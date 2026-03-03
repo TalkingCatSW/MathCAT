@@ -5,6 +5,7 @@ Contains functions for comparing English and translated files,
 and for performing full language audits.
 """
 
+import json
 import sys
 from pathlib import Path
 from typing import List, Optional, TextIO, Tuple
@@ -14,7 +15,7 @@ from rich.table import Table
 
 from .dataclasses import RuleInfo, ComparisonResult
 from .parsers import parse_yaml_file, diff_rules
-from .renderer import IssueWriter, collect_issues, console, print_warnings
+from .renderer import collect_issues, console, print_warnings
 
 # Re-export console so existing `from .auditor import console` callers keep working.
 __all__ = ["console"]
@@ -192,8 +193,6 @@ def audit_language(
     if output_path:
         out_stream = open(output_path, "w", encoding="utf-8", newline="")
 
-    writer = IssueWriter(output_format, out_stream) if output_format != "rich" else None
-
     total_issues = 0
     total_missing = 0
     total_untranslated = 0
@@ -231,7 +230,7 @@ def audit_language(
         else:
             issues_list = collect_issues(result, file_name, language)
             for issue in issues_list:
-                writer.write(issue)
+                out_stream.write(json.dumps(issue, ensure_ascii=False) + "\n")
             if issues_list:
                 files_with_issues += 1
                 total_issues += len(issues_list)

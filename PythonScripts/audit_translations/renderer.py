@@ -7,7 +7,7 @@ and the IssueWriter interface.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, TextIO, Tuple
+from typing import Any, Dict, List, Tuple
 
 from rich.console import Console
 from rich.markup import escape
@@ -155,16 +155,6 @@ def collect_issues(
         issues.append(issue)
 
     return issues
-
-
-class IssueWriter:
-    def __init__(self, output_format: str, stream: TextIO):
-        if output_format != "jsonl":
-            raise ValueError(f"Unsupported output format: {output_format}")
-        self.stream = stream
-
-    def write(self, issue: dict) -> None:
-        self.stream.write(json.dumps(issue, ensure_ascii=False) + "\n")
 
 
 def print_warnings(

@@ -5,7 +5,7 @@ from io import StringIO
 from pathlib import Path
 
 from ..auditor import compare_files
-from ..renderer import IssueWriter, collect_issues
+from ..renderer import collect_issues
 
 
 def load_jsonl(text: str) -> list[dict]:
@@ -27,16 +27,14 @@ def test_jsonl_output_matches_golden():
     files = sorted(path.name for path in english_dir.glob("*.yaml"))
 
     stream = StringIO()
-    writer = IssueWriter("jsonl", stream)
 
     for file_name in files:
         result = compare_files(
             str(english_dir / file_name),
             str(translated_dir / file_name),
         )
-        issues = collect_issues(result, file_name, "de")
-        for issue in issues:
-            writer.write(issue)
+        for issue in collect_issues(result, file_name, "de"):
+            stream.write(json.dumps(issue, ensure_ascii=False) + "\n")
 
     actual = load_jsonl(stream.getvalue())
 
