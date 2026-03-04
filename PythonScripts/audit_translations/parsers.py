@@ -100,81 +100,61 @@ def iter_field_matches(node: Any) -> Iterator[tuple[str, Any, Any]]:
             yield key, match.value, parent
 
 
-def parse_rules_file(content: str, data: Any) -> list[RuleInfo]:
-    """Parse a standard rules file with name/tag entries"""
+def _extract_item_fields(item: Any, is_unicode: bool) -> tuple[str, str | None, str | None, Any] | None:
+    if is_unicode:
+        if isinstance(item, dict) and len(item) == 1:
+            char_key = str(next(iter(item.keys())))
+            return char_key, None, None, item[char_key]
+    else:
+        if isinstance(item, dict) and "name" in item:
+            rule_name = str(item.get("name"))
+            tag = format_tag(item.get("tag"))
+            return f"{rule_name}|{tag or 'unknown'}", rule_name, tag, item
+    return None
+
+
+def _build_rule_items(content: str, data: Any, is_unicode_file: bool) -> list[RuleInfo]:
     if not isinstance(data, list):
         return []
 
-    rules: list[RuleInfo] = []
     lines = content.splitlines()
-
     start_lines: list[int] = []
-    rule_items: list[Any] = []
+    extracted: list[tuple[str, str | None, str | None, Any]] = []
+
     for idx, item in enumerate(data):
-        if isinstance(item, dict) and "name" in item:
+        fields = _extract_item_fields(item, is_unicode_file)
+        if fields is not None:
             line = data.lc.item(idx)[0] if hasattr(data, "lc") else 0
             start_lines.append(line)
-            rule_items.append(item)
-
+            extracted.append(fields)
     raw_blocks = build_raw_blocks(lines, start_lines)
 
-    for item, raw_content, line_idx in zip(rule_items, raw_blocks, start_lines):
-        rule_name = str(item.get("name"))
-        tag = format_tag(item.get("tag"))
-        rule_key = f"{rule_name}|{tag or 'unknown'}"
+    rules: list[RuleInfo] = []
+    for (key, name, tag, item_data), raw_content, line_idx in zip(extracted, raw_blocks, start_lines):
         rules.append(
             RuleInfo(
-                name=rule_name,
+                name=name,
                 tag=tag,
-                key=rule_key,
+                key=key,
                 line_number=line_idx + 1,
                 raw_content=raw_content,
-                data=item,
-                untranslated_entries=find_untranslated_text_entries(item),
-                line_map=build_line_map(item),
+                data=item_data,
+                untranslated_entries=find_untranslated_text_entries(item_data),
+                line_map=build_line_map(item_data),
                 audit_ignore=has_audit_ignore(raw_content),
             )
         )
-
     return rules
+
+
+def parse_rules_file(content: str, data: Any) -> list[RuleInfo]:
+    """Parse a standard rules file with name/tag entries."""
+    return _build_rule_items(content, data, is_unicode_file=False)
 
 
 def parse_unicode_file(content: str, data: Any) -> list[RuleInfo]:
-    """Parse a unicode file with character/range keys"""
-    if not isinstance(data, list):
-        return []
-
-    rules: list[RuleInfo] = []
-    lines = content.splitlines()
-
-    start_lines: list[int] = []
-    entries: list[tuple[str, Any]] = []
-    for idx, item in enumerate(data):
-        if isinstance(item, dict) and len(item) == 1:
-            key = next(iter(item.keys()))
-            value = item[key]
-            line = data.lc.item(idx)[0] if hasattr(data, "lc") else 0
-            start_lines.append(line)
-            entries.append((str(key), value))
-
-    raw_blocks = build_raw_blocks(lines, start_lines)
-
-    for (char_key, value), raw_content, line_idx in zip(entries, raw_blocks, start_lines):
-        rules.append(
-            RuleInfo(
-                name=None,
-                tag=None,
-                key=char_key,
-                line_number=line_idx + 1,
-                raw_content=raw_content,
-                data=value,
-                untranslated_entries=find_untranslated_text_entries(value),
-                line_map=build_line_map(value),
-                audit_ignore=has_audit_ignore(raw_content),
-            )
-        )
-
-    return rules
+    """Parse a unicode file with character/range keys."""
+    return _build_rule_items(content, data, is_unicode_file=True)
 
 
 def has_audit_ignore(content: str) -> bool:

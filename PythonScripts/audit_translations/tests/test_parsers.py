@@ -199,6 +199,45 @@ class TestParseRulesFile:
         rules = parse_rules_file(content, data)
         assert rules[0].tag == "[mo, mtext]"
 
+    def test_returns_empty_for_non_list_data(self):
+        """Non-list YAML data returns no rules."""
+        rules = parse_rules_file("key: value", {"key": "value"})
+        assert rules == []
+
+    def test_skips_items_without_name(self):
+        """Items like '- include: file' that lack a 'name' key are skipped."""
+        content = """- include: shared.yaml
+- name: real-rule
+  tag: mo
+  match: "."
+"""
+        yaml = YAML()
+        data = yaml.load(content)
+        rules = parse_rules_file(content, data)
+        assert len(rules) == 1
+        assert rules[0].name == "real-rule"
+
+    def test_mixed_valid_and_skipped_items(self):
+        """Valid rules interspersed with non-rule items keep correct line numbers."""
+        content = """- name: first
+  tag: mo
+  match: "."
+
+- include: other.yaml
+
+- name: second
+  tag: mi
+  match: "x"
+"""
+        yaml = YAML()
+        data = yaml.load(content)
+        rules = parse_rules_file(content, data)
+        assert len(rules) == 2
+        assert rules[0].name == "first"
+        assert rules[0].line_number == 1
+        assert rules[1].name == "second"
+        assert rules[1].line_number == 7
+
     def test_parse_yaml_file_handles_tabs(self, tmp_path):
         """Ensure parse yaml file handles tabs."""
         content = """- name: tabbed
@@ -266,6 +305,47 @@ class TestParseUnicodeFile:
         data = yaml.load(content)
         rules = parse_unicode_file(content, data)
         assert len(rules) == 2
+
+
+    def test_returns_empty_for_non_list_data(self):
+        """Non-list YAML data returns no rules."""
+        rules = parse_unicode_file("key: value", {"key": "value"})
+        assert rules == []
+
+    def test_skips_multi_key_dicts(self):
+        """Dicts with more than one key are not valid unicode entries and are skipped."""
+        content = """- "a":
+    - t: "a"
+- "b":
+    - t: "b"
+  "c":
+    - t: "c"
+"""
+        yaml = YAML()
+        data = yaml.load(content)
+        rules = parse_unicode_file(content, data)
+        assert len(rules) == 1
+        assert rules[0].key == "a"
+
+    def test_mixed_valid_and_skipped_items(self):
+        """Valid entries interspersed with non-entry items keep correct line numbers."""
+        content = """- "a":
+    - t: "alpha"
+
+- not: a unicode entry
+  extra: key
+
+- "b":
+    - t: "bravo"
+"""
+        yaml = YAML()
+        data = yaml.load(content)
+        rules = parse_unicode_file(content, data)
+        assert len(rules) == 2
+        assert rules[0].key == "a"
+        assert rules[0].line_number == 1
+        assert rules[1].key == "b"
+        assert rules[1].line_number == 7
 
 
 class TestExtractMatchPattern:
