@@ -68,7 +68,7 @@
 #![allow(clippy::needless_return)]
 
 use crate::{errors::*, prefs::PreferenceManager, speech::ReplacementArray};
-use sxd_document::dom::Element;
+use sxd_document_no_unsafe::{dom::Element, text_interned};
 use yaml_rust::Yaml;
 
 use std::fmt;
@@ -372,8 +372,8 @@ impl TTS {
                         Value::String(s) => s,
                         Value::Nodeset(nodes) if nodes.size() == 1 => {
                             let node = nodes.iter().next().unwrap();
-                            if let Some(text) = node.text() {
-                                text.text().to_string()
+                            if let Some(text) = node.clone().text() {
+                                text_interned!(text).to_string()
                             } else if let Some(el) = node.element() {
                                 if crate::xpath_functions::is_leaf(el) {
                                     crate::canonicalize::as_text(el).to_string()

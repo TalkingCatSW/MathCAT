@@ -9,9 +9,9 @@ use crate::canonicalize::{as_text, create_mathml_element};
 use crate::errors::*;
 use phf::phf_map;
 use regex::{Captures, Regex};
-use sxd_document::dom::{Element, Document, ChildOfRoot, ChildOfElement, Attribute};
-use sxd_document::parser;
-use sxd_document::Package;
+use sxd_document_no_unsafe::dom::{Element, Document, ChildOfRoot, ChildOfElement, Attribute};
+use sxd_document_no_unsafe::{local_name, parser, text_interned};
+use sxd_document_no_unsafe::{Package, QName, as_str, as_opt_str, as_qname};
 
 use crate::canonicalize::{as_element, name};
 use crate::shim_filesystem::{find_all_dirs_shim, find_files_in_dir_that_ends_with_shim};
@@ -344,7 +344,7 @@ fn set_preference_impl(name: &str, value: &str) -> Result<()> {
         if lower_case_value == "true" || lower_case_value == "false" {
             pref_manager.set_api_boolean_pref(name, value.to_lowercase() == "true");
         } else {
-            match name {
+            match &*name {
                 "Pitch" | "Rate" | "Volume" | "CapitalLetters_Pitch" | "MathRate" | "PauseFactor" => {
                     pref_manager.set_api_float_pref(name, to_float(name, &value)?)
                 }
@@ -416,7 +416,7 @@ pub fn get_navigation_braille() -> Result<String> {
                                 name(found)
                             );
                         } else if let Some(ch) = as_text(found).chars().nth(offset) {
-                            let internal_mathml = create_mathml_element(&new_doc, name(found));
+                            let internal_mathml = create_mathml_element(&new_doc, as_str!(name(found)));
                             internal_mathml.set_text(&ch.to_string());
                             let new_mathml = create_mathml_element(&new_doc, "math");
                             new_mathml.append_child(internal_mathml);
@@ -661,15 +661,22 @@ pub fn get_supported_languages() -> Result<Vec<String>> {
 pub fn copy_mathml(mathml: Element) -> Element {
     // If it represents MathML, the 'Element' can only have Text and Element children along with attributes
     let children = mathml.children();
-    let new_mathml = create_mathml_element(&mathml.document(), name(mathml));
+    let new_mathml = create_mathml_element(&mathml.document(), as_str!(name(mathml)));
     mathml.attributes().iter().for_each(|attr| {
-        new_mathml.set_attribute_value(attr.name(), attr.value());
+        let attr_lp = attr.name_local_part_interned();
+        let attr_ns = attr.name_namespace_uri_interned();
+        let attr_val = attr.value_interned();
+        new_mathml.set_attribute_value(
+            QName::with_namespace_uri(attr_ns.as_ref().map(|s| &**s), &attr_lp),
+            &attr_val,
+        );
     });
 
     // can't use is_leaf/as_text because this is also used with the intent tree
     if children.len() == 1 &&
        let Some(text) = children[0].text() {
-        new_mathml.set_text(text.text());
+        let text_content = text_interned!(text);
+        new_mathml.set_text(as_str!(text_content));
         return new_mathml;
         }
 
@@ -789,7 +796,7 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
                 trim_element(c, allow_structure_in_leaves);
             }
             ChildOfElement::Text(t) => {
-                single_text += t.text();
+                single_text += as_str!(text_interned!(t));
                 e.remove_child(child);
             }
             _ => {
@@ -835,14 +842,14 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
             let child_text = match child {
                 ChildOfElement::Element(child) => {
                     if name(child) == "mglyph" {
-                        child.attribute_value("alt").unwrap_or("").to_string()
+                        child.attribute_value_interned("alt").map(|g| as_str!(g).to_string()).unwrap_or_default()
                     } else {
                         gather_text(child)
                     }
                 }
                 ChildOfElement::Text(t) => {
                     // debug!("ChildOfElement::Text: '{}'", t.text());
-                    t.text().to_string()
+                    text_interned!(t).to_string()
                 }
                 _ => "".to_string(),
             };
@@ -864,7 +871,7 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
                     ChildOfElement::Element(child) => {
                         text += &gather_text(child);
                     }
-                    ChildOfElement::Text(t) => text += t.text(),
+                    ChildOfElement::Text(t) => text += as_str!(text_interned!(t)),
                     _ => (),
                 }
             }
@@ -891,7 +898,7 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
         }
 
         // now do the rewrite, flatting out the mathml and returning an mrow with the children
-        let leaf_name = name(mathml_leaf);
+        let leaf_name = local_name!(mathml_leaf);
         let doc = mathml_leaf.document();
         let mut new_children = Vec::new();
         let mut is_last_mtext = false;
@@ -904,11 +911,12 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
                 // combine adjacent text nodes into single nodes
                 if is_last_mtext {
                     let last_child = new_children.last_mut().unwrap().element().unwrap();
-                    let new_text = as_text(last_child).to_string() + text.text();
+                    let new_text = as_text(last_child).to_string() + as_str!(text_interned!(text));
                     last_child.set_text(&new_text);
                 } else {
-                    let new_leaf_node = create_mathml_element(&doc, leaf_name);
-                    new_leaf_node.set_text(text.text());
+                    let new_leaf_node = create_mathml_element(&doc, &*leaf_name);
+                    let text_content = text_interned!(text);
+                    new_leaf_node.set_text(as_str!(text_content));
                     new_children.push(ChildOfElement::Element(new_leaf_node));
                     is_last_mtext = true;
                 }
@@ -919,7 +927,7 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
         for child in &mut new_children {    
             if let Some(element) = child.element() && is_leaf(element) {
                 let text = as_text(element);
-                let cleaned_text = WHITESPACE_MATCH.replace_all(text, " ").trim_matches(WHITESPACE).to_string();
+                let cleaned_text = WHITESPACE_MATCH.replace_all(as_str!(text), " ").trim_matches(WHITESPACE).to_string();
                 element.set_text(&cleaned_text);
             }
         }
@@ -964,7 +972,7 @@ fn is_same_doc(doc1: &Document, doc2: &Document) -> Result<()> {
             }
             ChildOfRoot::Comment(com1) => {
                 if let ChildOfRoot::Comment(com2) = c2 {
-                    if com1.text() != com2.text() {
+                    if as_str!(com1.text()) != as_str!(com2.text()) {
                         bail!("child #{} -- comment text differs", i);
                     }
                 } else {
@@ -973,7 +981,7 @@ fn is_same_doc(doc1: &Document, doc2: &Document) -> Result<()> {
             }
             ChildOfRoot::ProcessingInstruction(p1) => {
                 if let ChildOfRoot::ProcessingInstruction(p2) = c2 {
-                    if p1.target() != p2.target() || p1.value() != p2.value() {
+                    if as_str!(p1.target()) != as_str!(p2.target()) || as_opt_str!(p1.value()) != as_opt_str!(p2.value()) {
                         bail!("child #{} -- processing instruction differs", i);
                     }
                 } else {
@@ -1023,7 +1031,7 @@ pub fn is_same_element(e1: Element, e2: Element, ignore_attrs: &[&str]) -> Resul
             }
             ChildOfElement::Comment(com1) => {
                 if let ChildOfElement::Comment(com2) = c2 {
-                    if com1.text() != com2.text() {
+                    if as_str!(com1.text()) != as_str!(com2.text()) {
                         bail!("{} child #{} -- comment text differs", name(e1), i);
                     }
                 } else {
@@ -1032,7 +1040,7 @@ pub fn is_same_element(e1: Element, e2: Element, ignore_attrs: &[&str]) -> Resul
             }
             ChildOfElement::ProcessingInstruction(p1) => {
                 if let ChildOfElement::ProcessingInstruction(p2) = c2 {
-                    if p1.target() != p2.target() || p1.value() != p2.value() {
+                    if as_str!(p1.target()) != as_str!(p2.target()) || as_opt_str!(p1.value()) != as_opt_str!(p2.value()) {
                         bail!("{} child #{} -- processing instruction differs", name(e1), i);
                     }
                 } else {
@@ -1059,10 +1067,10 @@ pub fn is_same_element(e1: Element, e2: Element, ignore_attrs: &[&str]) -> Resul
     /// compares attributes -- '==' didn't seems to work
     fn attrs_are_same(attrs1: Vec<Attribute>, attrs2: Vec<Attribute>, ignore: &[&str]) -> Result<()> {
         let attrs1 = attrs1.iter()
-                .filter(|a| !ignore.contains(&a.name().local_part())).cloned()
+                .filter(|a| !ignore.contains(&as_qname!(a.name()).local_part())).cloned()
                 .collect::<Vec<Attribute>>();
         let attrs2 = attrs2.iter()
-                .filter(|a| !ignore.contains(&a.name().local_part())).cloned()
+                .filter(|a| !ignore.contains(&as_qname!(a.name()).local_part())).cloned()
                 .collect::<Vec<Attribute>>();
         if attrs1.len() != attrs2.len() {
             bail!("Attributes have different length: {:?} != {:?}", attrs1, attrs2);
@@ -1071,16 +1079,16 @@ pub fn is_same_element(e1: Element, e2: Element, ignore_attrs: &[&str]) -> Resul
         for attr1 in attrs1 {
             if let Some(found_attr2) = attrs2
                 .iter()
-                .find(|&attr2| attr1.name().local_part() == attr2.name().local_part())
+                .find(|&attr2| as_qname!(attr1.name()).local_part() == as_qname!(attr2.name()).local_part())
             {
-                if attr1.value() == found_attr2.value() {
+                if as_str!(attr1.value()) == as_str!(found_attr2.value()) {
                     continue;
                 } else {
                     bail!(
                         "Attribute named {} has differing values:\n  '{}'\n  '{}'",
-                        attr1.name().local_part(),
-                        attr1.value(),
-                        found_attr2.value()
+                        as_qname!(attr1.name()).local_part(),
+                        as_str!(attr1.value()),
+                        as_str!(found_attr2.value())
                     );
                 }
             } else {
@@ -1094,7 +1102,7 @@ pub fn is_same_element(e1: Element, e2: Element, ignore_attrs: &[&str]) -> Resul
         return Ok(());
 
         fn print_attr(attr: &Attribute) -> String {
-            return format!("@{}='{}'", attr.name().local_part(), attr.value());
+            return format!("@{}='{}'", as_qname!(attr.name()).local_part(), as_str!(attr.value()));
         }
         fn print_attrs(attrs: &[Attribute]) -> String {
             return attrs.iter().map(print_attr).collect::<Vec<String>>().join(", ");

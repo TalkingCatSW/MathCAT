@@ -5,8 +5,9 @@
 use std::cell::{Ref, RefCell, RefMut};
 use sxd_xpath::context::Evaluation;
 use sxd_xpath::Value;
-use sxd_document::dom::Element;
-use sxd_document::Package;
+use sxd_document_no_unsafe::dom::Element;
+use sxd_document_no_unsafe::{Package};
+use sxd_document_no_unsafe::as_str;
 
 use std::fmt;
 use crate::canonicalize::{name, get_parent};
@@ -182,7 +183,7 @@ impl NavigationState {
 
     pub fn get_navigation_mathml_id(&self, mathml: Element) -> (String, usize) {
         if self.position_stack.is_empty() {
-            return (mathml.attribute_value("id").unwrap().to_string(), 0);
+            return (mathml.attribute_value_interned("id").unwrap().to_string(), 0);
         } else {
             let (position, _) = self.top().unwrap();
             return (position.current_node.clone(), position.current_node_offset);
@@ -247,10 +248,10 @@ fn convert_last_char_to_number(str: &str) -> usize {
 /// Get the node associated with a `NavigationPosition`.
 /// This can be called on an intent tree 
 fn get_node_by_id<'a>(mathml: Element<'a>, pos: &NavigationPosition) -> Option<Element<'a>> {
-    if let Some(mathml_id) = mathml.attribute_value("id") &&
-       mathml_id == pos.current_node.as_str() &&
-        (crate::xpath_functions::is_leaf(mathml) || 
-        mathml.attribute_value(ID_OFFSET).unwrap_or("0") == pos.current_node_offset.to_string()) {
+    if let Some(mathml_id) = mathml.attribute_value_interned("id") &&
+       as_str!(mathml_id) == pos.current_node.as_str() &&
+        (crate::xpath_functions::is_leaf(mathml) ||
+        mathml.attribute_value_interned(ID_OFFSET).map_or(false, |g| &*g == pos.current_node_offset.to_string())) {
         return Some(mathml);
     }
 
@@ -287,13 +288,14 @@ pub fn set_navigation_node_from_id(mathml: Element, id: &str, offset: usize) -> 
 /// Get's the Nav Node from the context, with some exceptions such as Toggle commands where it isn't set.
 /// Note: mathml can be any node. It isn't really used but some Element needs to be part of Evaluate().
 pub fn get_nav_node<'c>(context: &sxd_xpath::Context<'c>, var_name: &str, mathml: Element<'c>, start_node: Element<'c>, command: &str, nav_mode: &str) -> Result<String> {
-    let start_id = start_node.attribute_value("id").unwrap_or_default();
+    let _ai_startid = start_node.attribute_value_interned("id");
+    let start_id = _ai_startid.as_deref().unwrap_or("");
     if command.starts_with("Toggle") {
         return Ok( start_id.to_string() );
     } else {
         return context_get_variable(context, var_name, mathml)
                 .with_context(|| format!("When trying to {} starting at id={} in {} mode",
-                                                command, start_node.attribute_value("id").unwrap_or_default(), nav_mode));
+                                                command, start_node.attribute_value_interned("id").map_or(String::new(), |g| g.to_string()), nav_mode));
     }
 }
 
@@ -313,7 +315,7 @@ pub fn context_get_variable<'c>(context: &sxd_xpath::Context<'c>, var_name: &str
             Value::Nodeset(nodes) => {
                 if nodes.size() == 1 &&
                    let Some(attr) = nodes.document_order_first().unwrap().attribute() {
-                        return Ok(attr.value().to_string());
+                        return Ok(attr.value_interned().to_string());
                     };
                 let mut error_message = format!("Variable '{var_name}' set somewhere in navigate.yaml is nodeset and not an attribute: ");
                 if nodes.size() == 0 {
@@ -380,7 +382,7 @@ pub fn do_navigate_command_string(mathml: Element, nav_command: &'static str) ->
         if nav_state.position_stack.is_empty() {
             // initialize to root node
             nav_state.push(NavigationPosition{
-                current_node: mathml.attribute_value("id").unwrap().to_string(),
+                current_node: mathml.attribute_value_interned("id").unwrap().to_string(),
                 current_node_offset: 0
             }, "None")
         };
@@ -447,7 +449,7 @@ pub fn do_navigate_command_string(mathml: Element, nav_command: &'static str) ->
     fn get_start_node<'m>(mathml: Element<'m>, nav_state: &RefMut<NavigationState>) -> Result<Element<'m>>  {
         let element = match nav_state.top() {
             None => {
-                let nav_position = NavigationPosition { current_node: mathml.attribute_value("id").unwrap().to_string(), current_node_offset: 0 };
+                let nav_position = NavigationPosition { current_node: mathml.attribute_value_interned("id").unwrap().to_string(), current_node_offset: 0 };
                 get_node_by_id(mathml, &nav_position)
             },
             Some( (position, _) ) => get_node_by_id(mathml, position),
@@ -482,8 +484,10 @@ pub fn do_navigate_command_string(mathml: Element, nav_command: &'static str) ->
         };
 
         let mut properties = "";
+        let _ai_properties;
         if add_literal {
-            properties  = mathml.attribute_value("data-intent-property").unwrap_or_default();
+            _ai_properties = mathml.attribute_value_interned("data-intent-property");
+            properties = _ai_properties.as_deref().unwrap_or("");
             if properties.contains(":literal:") {
                 add_literal = false;
             } else {
@@ -503,8 +507,8 @@ pub fn do_navigate_command_string(mathml: Element, nav_command: &'static str) ->
                     found_node = get_parent(found_node);
                     // debug!("found_node:\n{}", mml_to_string(found_node));
                     let temp_pos = NavigationPosition {
-                        current_node: found_node.attribute_value("id").unwrap_or_default().to_string().clone(),
-                        current_node_offset: found_node.attribute_value(ID_OFFSET).unwrap_or_default().parse::<usize>().unwrap_or_default(),
+                        current_node: found_node.attribute_value_interned("id").map_or("".to_string(), |g| g.to_string()),
+                        current_node_offset: found_node.attribute_value_interned(ID_OFFSET).map_or(0usize, |g| g.parse::<usize>().unwrap_or_default()),
                     };
                     if let Some(intent_node) = get_node_by_id(nav_intent, &temp_pos) {
                         found_node = intent_node;

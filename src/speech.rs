@@ -7,8 +7,8 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use std::cell::{RefCell, RefMut};
 use std::sync::LazyLock;
-use sxd_document::dom::{ChildOfElement, Document, Element};
-use sxd_document::{Package, QName};
+use sxd_document_no_unsafe::dom::{ChildOfElement, Document, Element};
+use sxd_document_no_unsafe::{Package, QName, as_qname, as_str, local_name, text_interned};
 use sxd_xpath::context::Evaluation;
 use sxd_xpath::{Factory, Value, XPath};
 use sxd_xpath::nodeset::Node;
@@ -93,10 +93,10 @@ fn intent_rules<'m>(rules: &'static std::thread::LocalKey<RefCell<SpeechRules>>,
         let rules = rules.borrow();
         // debug!("intent_rules:\n{}", mml_to_string(mathml));
         let should_set_literal_intent = rules.pref_manager.borrow().pref_to_string("SpeechStyle").as_str() == "LiteralSpeak";
-        let original_intent = mathml.attribute_value("intent");
+        let original_intent = mathml.attribute_value_interned("intent").map(|g| as_str!(g).to_string());
         if should_set_literal_intent {
-            if let Some(intent) = original_intent {
-                let intent = if intent.contains('(') {intent.replace('(', ":literal(")} else {intent.to_string() + ":literal"};
+            if let Some(ref intent) = original_intent {
+                let intent = if intent.contains('(') {intent.replace('(', ":literal(")} else {intent.clone() + ":literal"};
                 mathml.set_attribute_value("intent", &intent);
             } else {
                 mathml.set_attribute_value("intent", ":literal");
@@ -112,7 +112,7 @@ fn intent_rules<'m>(rules: &'static std::thread::LocalKey<RefCell<SpeechRules>>,
             intent
         };
         if should_set_literal_intent {
-            if let Some(original_intent) = original_intent {
+            if let Some(ref original_intent) = original_intent {
                 mathml.set_attribute_value("intent", original_intent);
             } else {
                 mathml.remove_attribute("intent");
@@ -146,7 +146,8 @@ fn speak_rules(rules: &'static std::thread::LocalKey<RefCell<SpeechRules>>, math
         // Note: [[...]] is added around a matching child, but if the "id" is on 'mathml', the whole string is used
         if !rules_with_context.nav_node_id.is_empty() {
             // See https://github.com/NSoiffer/MathCAT/issues/174 for why we can just start the speech at the nav node
-            let intent_attr = mathml.attribute_value("data-intent-property").unwrap_or_default();
+            let _ai_intentattr = mathml.attribute_value_interned("data-intent-property");
+            let intent_attr = _ai_intentattr.as_deref().unwrap_or("");
             if let Some(start) = speech_string.find("[[") {
                 match speech_string[start+2..].find("]]") {
                     None => bail!("Internal error: looking for '[[...]]' during navigation -- only found '[[' in '{}'", speech_string),
@@ -635,14 +636,14 @@ impl Intent {
             result = temp;
         }
         if let Some(intent_name) = &self.name {
-            result.set_attribute_value(MATHML_FROM_NAME_ATTR, name(mathml));
+            result.set_attribute_value(MATHML_FROM_NAME_ATTR, as_str!(name(mathml)));
             set_mathml_name(result, intent_name.as_str());
         }
         if let Some(my_xpath) = &self.xpath{    // self.xpath_name must be != None
             let xpath_value = my_xpath.evaluate(rules_with_context.get_context(), mathml)?;
             match xpath_value {
                 Value::String(intent_name) => {
-                    result.set_attribute_value(MATHML_FROM_NAME_ATTR, name(mathml));
+                    result.set_attribute_value(MATHML_FROM_NAME_ATTR, as_str!(name(mathml)));
                     set_mathml_name(result, intent_name.as_str())
                 },
                 _ => bail!("'xpath-name' value '{}' was not a string", &my_xpath),
@@ -653,12 +654,18 @@ impl Intent {
         };
         
         for attr in mathml.attributes() {
-            result.set_attribute_value(attr.name(), attr.value());
+            let attr_lp = attr.name_local_part_interned();
+            let attr_ns = attr.name_namespace_uri_interned();
+            let attr_val = attr.value_interned();
+            result.set_attribute_value(
+                QName::with_namespace_uri(attr_ns.as_ref().map(|s| &**s), &attr_lp),
+                &attr_val,
+            );
         }
 
         // can't test against name == "math" because intent might a new element
         if mathml.parent().is_some() && mathml.parent().unwrap().element().is_some() &&
-           result.attribute_value("id") == crate::canonicalize::get_parent(mathml).attribute_value("id") {
+           result.attribute_value_interned("id") == crate::canonicalize::get_parent(mathml).attribute_value_interned("id") {
             // avoid duplicate ids -- it's a bug if it does, but this helps in that case
             result.remove_attribute("id");
         }
@@ -813,7 +820,7 @@ impl TranslateExpression {
                 Value::String(s) => Some(s),
                 Value::Nodeset(nodes) => {
                     if nodes.size() == 1 {
-                        nodes.document_order_first().unwrap().attribute().map(|attr| attr.value().to_string())
+                        nodes.document_order_first().unwrap().attribute().map(|attr| attr.value_interned().to_string())
                     } else {
                         None
                     }
@@ -1073,11 +1080,7 @@ impl MyXPath {
                         .with_context(|| format!(
                             "Could not compile XPath for pattern:\n{}{}",
                             &xpath, more_details(xpath)))?;
-        return match compiled_xpath {
-            Some(xpath) => Ok(xpath),
-            None => bail!("Problem compiling Xpath for pattern:\n{}{}",
-                            &xpath, more_details(xpath)),
-        };
+        return Ok(compiled_xpath);
 
         
         fn more_details(xpath: &str) -> String {
@@ -1378,7 +1381,7 @@ impl SpeechPattern  {
     }
 
     fn is_match(&self, context: &sxd_xpath::Context, mathml: Element) -> Result<bool> {
-        if self.tag_name != mathml.name().local_part() && self.tag_name != "*" && self.tag_name != "!*" {
+        if self.tag_name != as_qname!(mathml.name()).local_part() && self.tag_name != "*" && self.tag_name != "!*" {
             return Ok( false );
         }
 
@@ -2387,7 +2390,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
 
     pub fn match_pattern<T:TreeOrString<'c, 'm, T>>(&'r mut self, mathml: Element<'c>) -> Result<T> {
         // debug!("Looking for a match for: \n{}", mml_to_string(mathml));
-        let tag_name = mathml.name().local_part();
+        let tag_name = local_name!(mathml);
         let rules = &self.speech_rules.rules;
 
         // start with priority rules that apply to any node (should be a very small number)
@@ -2396,7 +2399,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                 return Ok(result);      // found a match
             }
         
-        if let Some(rule_vector) = rules.get(tag_name) &&
+        if let Some(rule_vector) = rules.get(as_str!(tag_name)) &&
            let Some(result) = self.find_match(rule_vector, mathml)? {
                 return Ok(result);      // found a match
             }
@@ -2430,7 +2433,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                     self.context_stack.push(pattern.var_defs.clone(), mathml)?;
                 }
                 let result = if self.nav_node_offset > 0 &&
-                            self.nav_node_id == mathml.attribute_value("id").unwrap_or_default() && is_leaf(mathml) {
+                            mathml.attribute_value_interned("id").map_or(false, |g| self.nav_node_id == &*g) && is_leaf(mathml) {
                     let ch = crate::canonicalize::as_text(mathml).chars().nth(self.nav_node_offset-1).unwrap_or_default();
                     let ch = self.replace_single_char(ch, mathml)?;
                     // debug!("find_match: ch={} from '{}'; matched pattern name/tag: {}/{} with nav_node_offset={}",
@@ -2449,7 +2452,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                         if self.nav_node_id.is_empty() {
                             Ok( Some(s) )
                         } else {
-                            if self.nav_node_id == mathml.attribute_value("id").unwrap_or_default() {debug!("Matched pattern name/tag: {}/{}", pattern.pattern_name, pattern.tag_name)};
+                            if mathml.attribute_value_interned("id").map_or(false, |g| self.nav_node_id == &*g) {debug!("Matched pattern name/tag: {}/{}", pattern.pattern_name, pattern.tag_name)};
                             Ok ( Some(self.nav_node_adjust(s, mathml)) )
                         }
                     },
@@ -2488,10 +2491,11 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
     }
 
     fn nav_node_adjust<T:TreeOrString<'c, 'm, T>>(&self, speech: T, mathml: Element<'c>) -> T {
-      if let Some(id) = mathml.attribute_value("id") &&
-         self.nav_node_id == id {
-        let offset = mathml.attribute_value(crate::navigate::ID_OFFSET).unwrap_or("0");
-        debug!("nav_node_adjust: id/name='{}/{}' offset?='{}'", id, name(mathml),
+      if let Some(id) = mathml.attribute_value_interned("id") &&
+         self.nav_node_id == as_str!(id) {
+        let _ai_offset = mathml.attribute_value_interned(crate::navigate::ID_OFFSET);
+        let offset = _ai_offset.as_deref().unwrap_or("0");
+        debug!("nav_node_adjust: id/name='{}/{}' offset?='{}'", as_str!(id), name(mathml),
                self.nav_node_offset.to_string().as_str() == offset
         );
         if is_leaf(mathml) || self.nav_node_offset.to_string().as_str() == offset {
@@ -2499,7 +2503,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
             let highlight_style =  self.speech_rules.pref_manager.borrow().pref_to_string("BrailleNavHighlight");
             return T::highlight_braille(speech, highlight_style);
           } else {
-            debug!("nav_node_adjust: id='{}' offset='{}/{}'", id, self.nav_node_offset, offset);
+            debug!("nav_node_adjust: id='{}' offset='{}/{}'", as_str!(id), self.nav_node_offset, offset);
             return T::mark_nav_speech(speech)
           }
         }
@@ -2628,13 +2632,13 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                 Node::Element(n) => self.match_pattern::<Element<'m>>(n)?,
                 Node::Text(t) =>  {
                     let leaf = create_mathml_element(&self.doc, "TEMP_NAME");
-                    leaf.set_text(t.text());
+                    leaf.set_text(as_str!(text_interned!(t)));
                     leaf
                 },
                 Node::Attribute(attr) => {
                     // debug!("  from attr with text '{}'", attr.value());
                     let leaf = create_mathml_element(&self.doc, "TEMP_NAME");
-                    leaf.set_text(attr.value());
+                    leaf.set_text(as_str!(attr.value()));
                     leaf
                 },
                 _ => {
@@ -2662,8 +2666,8 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
             };
             let matched = match node {
                 Node::Element(n) => self.match_pattern::<String>(n)?,
-                Node::Text(t) =>  self.replace_chars(t.text(), mathml)?,
-                Node::Attribute(attr) => self.replace_chars(attr.value(), mathml)?,
+                Node::Text(t) =>  self.replace_chars(as_str!(text_interned!(t)), mathml)?,
+                Node::Attribute(attr) => self.replace_chars(as_str!(attr.value()), mathml)?,
                 _ => bail!("replace_nodes: found unexpected node type!!!"),
             };
             result += &matched;

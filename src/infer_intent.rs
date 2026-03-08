@@ -5,7 +5,8 @@
 //! The implementation of the module is on hold until the MathML committee figures out how it wants to do this.
 #![allow(clippy::needless_return)]
 
-use sxd_document::dom::{Element, Document, ChildOfElement};
+use sxd_document_no_unsafe::dom::{Element, Document, ChildOfElement};
+use sxd_document_no_unsafe::{as_str, local_name};
 use crate::prefs::PreferenceManager;
 use crate::speech::SpeechRulesWithContext;
 use crate::canonicalize::{as_element, as_text, name, create_mathml_element, set_mathml_name, INTENT_ATTR, MATHML_FROM_NAME_ATTR};
@@ -29,7 +30,7 @@ pub fn infer_intent<'r, 'c, 's:'c, 'm:'c>(rules_with_context: &'r mut SpeechRule
             if intent_preference == "Error" {
                 return Err(e);
             } else {
-                let saved_intent_attr = mathml.attribute_value(INTENT_ATTR).unwrap();
+                let saved_intent_attr = as_str!(mathml.attribute_value_interned(INTENT_ATTR).unwrap());
                 mathml.remove_attribute(INTENT_ATTR);
                 // can't call intent_from_mathml() because we have already borrowed_mut -- we call a more internal version
                 let intent_tree =  match rules_with_context.match_pattern::<Element<'m>>(mathml)
@@ -47,7 +48,8 @@ pub fn infer_intent<'r, 'c, 's:'c, 'm:'c>(rules_with_context: &'r mut SpeechRule
     }
 
     fn catch_errors_building_intent<'r, 'c, 's:'c, 'm:'c>(rules_with_context: &'r mut SpeechRulesWithContext<'c,'s,'m>, mathml: Element<'c>) -> Result<Element<'m>> {
-        if let Some(intent_str) = mathml.attribute_value(INTENT_ATTR) {
+        if let Some(intent_guard) = mathml.attribute_value_interned(INTENT_ATTR) {
+            let intent_str = as_str!(intent_guard);
             // debug!("Before intent: {}", crate::pretty_print::mml_to_string(mathml));
             let mut lex_state = LexState::init(intent_str.trim())?;
             let mut intent_offset = 0;
@@ -92,16 +94,16 @@ pub fn simplify_fixity_properties(properties: &str) -> String {
 
 /// Given the intent add the fixity property for the intent if it isn't given (and one exists)
 fn add_fixity(intent: Element) {
-    let properties = intent.attribute_value(INTENT_PROPERTY).unwrap_or_default();
+    let properties = intent.attribute_value_interned(INTENT_PROPERTY).map(|g| as_str!(g).to_string()).unwrap_or_default();
     if properties.split(":").all(|property| !FIXITIES.contains(property)) {
-        let intent_name = name(intent);
+        let intent_name = local_name!(intent);
         crate::definitions::SPEECH_DEFINITIONS.with(|definitions| {
             let definitions = definitions.borrow();
-            if let Some(definition) = definitions.get_hashmap("IntentMappings").unwrap().get(intent_name) &&
+            if let Some(definition) = definitions.get_hashmap("IntentMappings").unwrap().get(as_str!(intent_name)) &&
                 let Some((fixity, _)) = definition.split_once("=") {
-                    let new_properties = (if properties.is_empty() {":"} else {properties}).to_string() + fixity + ":";
+                    let new_properties = (if properties.is_empty() {":"} else {&*properties}).to_string() + fixity + ":";
                     intent.set_attribute_value(INTENT_PROPERTY, &new_properties);
-                    // debug!("Added fixity: new value '{}'", intent.attribute_value(INTENT_PROPERTY).unwrap());
+                    // debug!("Added fixity: new value '{}'", intent.attribute_value_interned(INTENT_PROPERTY).unwrap());
                 };
         });
     }
@@ -118,7 +120,7 @@ pub fn add_fixity_children(intent: Element) -> Element {
 
     for child in children {
         let child = as_element(child);
-        if child.attribute_value(INTENT_ATTR).is_some() {
+        if child.attribute_value_interned(INTENT_ATTR).is_some() {
             add_fixity_child(child);
         }
     }
@@ -130,31 +132,31 @@ pub fn add_fixity_children(intent: Element) -> Element {
             return mathml;
         }
         // we also exclude fixity on mtable because they mess up the counts (see 'en::mtable::unknown_mtable_property')
-        if mathml.attribute_value(MATHML_FROM_NAME_ATTR).unwrap_or_default() == "mtable" {
+        if mathml.attribute_value_interned(MATHML_FROM_NAME_ATTR).map(|g| as_str!(g).to_string()).unwrap_or_default() == "mtable" {
             return mathml;
         }
         let doc = mathml.document();
-        let properties = mathml.attribute_value(INTENT_PROPERTY).unwrap_or_default();
+        let properties = mathml.attribute_value_interned(INTENT_PROPERTY).map(|g| as_str!(g).to_string()).unwrap_or_default();
         let fixity = properties.rsplit(':').find(|&property| FIXITIES.contains(property)).unwrap_or_default();
-        let intent_name = name(mathml);
+        let intent_name = local_name!(mathml);
     
-        let op_name_id = mathml.attribute_value("id").unwrap_or("new-id");
+        let op_name_id = mathml.attribute_value_interned("id").map(|g| as_str!(g).to_string()).unwrap_or_else(|| "new-id".to_string());
         match fixity {
             "infix" => {
                 let mut new_children = Vec::with_capacity(2*children.len()-1);
                 new_children.push(children[0]);
                 for (i, &child) in children.iter().enumerate().skip(1) {
-                    new_children.push(create_operator_element(intent_name, fixity, op_name_id, i, &doc));
+                    new_children.push(create_operator_element(as_str!(intent_name), fixity, &op_name_id, i, &doc));
                     new_children.push(child);
                 }
                 mathml.replace_children(new_children);
             },
             "prefix" => { 
-                children.insert(0, create_operator_element(intent_name, fixity, op_name_id, 1, &doc));                       
+                children.insert(0, create_operator_element(as_str!(intent_name), fixity, &op_name_id, 1, &doc));                       
                 mathml.replace_children(children);
             },
             "postfix" => { 
-                children.push( create_operator_element(intent_name, fixity, op_name_id, 1, &doc));                       
+                children.push( create_operator_element(as_str!(intent_name), fixity, &op_name_id, 1, &doc));                       
                 mathml.replace_children(children);
             },
             "silent" => {
@@ -166,9 +168,9 @@ pub fn add_fixity_children(intent: Element) -> Element {
             _ => {  // "function" is the default
                 // build a function like notation function-name U+2061 <mrow> children </mrow>
                 let mut new_children = Vec::with_capacity(3);
-                let function_name = create_operator_element(intent_name, "function", op_name_id, 1, &doc);
+                let function_name = create_operator_element(as_str!(intent_name), "function", &op_name_id, 1, &doc);
                 new_children.push(function_name);
-                let invisible_apply_function = create_operator_element("mo", "infix", op_name_id, 2, &doc);
+                let invisible_apply_function = create_operator_element("mo", "infix", &op_name_id, 2, &doc);
                 invisible_apply_function.element().unwrap().set_text("\u{2061}");
                 new_children.push(invisible_apply_function);
                 let mrow_wrapper = create_mathml_element(&doc, "mrow");
@@ -196,7 +198,7 @@ pub fn add_fixity_children(intent: Element) -> Element {
 pub fn intent_speech_for_name(intent_name: &str, verbosity: &str, fixity: &str) -> String {
     crate::definitions::SPEECH_DEFINITIONS.with(|definitions| {
         let definitions = definitions.borrow();
-        if let Some(intent_name_pattern) = definitions.get_hashmap("IntentMappings").unwrap().get(intent_name) {
+        if let Some(intent_name_pattern) = definitions.get_hashmap("IntentMappings").unwrap().get(as_str!(intent_name)) {
             // Split the pattern is:
             //   fixity-def [|| fixity-def]*
             //   fixity-def := fixity=[open;] verbosity[; close]
@@ -399,32 +401,34 @@ fn build_intent<'b, 'r, 'c, 's:'c, 'm:'c>(rules_with_context: &'r mut SpeechRule
             //    Note: to avoid infinite loop, we need to remove the 'intent' so we don't end up back here; we put it back later
             let properties = get_properties(lex_state)?;    // advance state to see if funcall
             if lex_state.is_terminal("(") {
-                intent = create_mathml_element(&doc, name(mathml));
+                intent = create_mathml_element(&doc, as_str!(name(mathml)));
                 intent.set_attribute_value(INTENT_PROPERTY, &properties);
-                intent.set_attribute_value(MATHML_FROM_NAME_ATTR, name(mathml));
-                intent.set_attribute_value("id", mathml.attribute_value("id")
-                      .ok_or_else(|| anyhow!("no id on intent function name"))?);
+                intent.set_attribute_value(MATHML_FROM_NAME_ATTR, as_str!(name(mathml)));
+                let id_val = mathml.attribute_value_interned("id").map(|g| as_str!(g).to_string()).ok_or_else(|| anyhow!("no id on intent function name"))?;
+                intent.set_attribute_value("id", &id_val);
             } else {
-                let saved_intent = mathml.attribute_value(INTENT_ATTR).unwrap();
+                let saved_intent = as_str!(mathml.attribute_value_interned(INTENT_ATTR).unwrap()).to_string();
                 mathml.remove_attribute(INTENT_ATTR);
                 mathml.set_attribute_value(INTENT_PROPERTY, &properties);   // needs to be set before the pattern match
                 intent = rules_with_context.match_pattern::<Element<'m>>(mathml)?;
                 // debug!("Intent after pattern match:\n{}", mml_to_string(intent));
-                mathml.set_attribute_value(INTENT_ATTR, saved_intent);
+                mathml.set_attribute_value(INTENT_ATTR, &saved_intent);
             }
             add_fixity(intent);
             return Ok(intent);      // if we start with properties, then there can only be properties
         },
         Token::ConceptOrLiteral(word) | Token::Number(word) => {
             let leaf_name = if let Token::Number(_) = lex_state.token {"mn"} else {"mi"};
-            intent = create_mathml_element(&doc, leaf_name);
+            intent = create_mathml_element(&doc, &*leaf_name);
             // if the str is part of a larger intent and not the head (e.g., "a" in "f($x, a)", but not the "f" in it), then it is "made up"
             // debug!("    Token::ConceptOrLiteral, word={}, leaf_name={}", word, leaf_name);
+            let intent_attr_val = mathml.attribute_value_interned(INTENT_ATTR).map(|g| as_str!(g).to_string()).unwrap_or_default();
+            let _ln_mathml = local_name!(mathml);
             intent.set_attribute_value(MATHML_FROM_NAME_ATTR, 
-                if word == mathml.attribute_value(INTENT_ATTR).unwrap_or_default() {name(mathml)} else {leaf_name});
+                if word == intent_attr_val { as_str!(_ln_mathml) } else { leaf_name });
             intent.set_text(word);       // '-' and '_' get removed by the rules.
-            if let Some(id) = mathml.attribute_value("id") {
-                intent.set_attribute_value("id", &format!("{}-literal-{}", id, intent_offset));
+            if let Some(id_guard) = mathml.attribute_value_interned("id") {
+                intent.set_attribute_value("id", &format!("{}-literal-{}", as_str!(id_guard), intent_offset));
                 *intent_offset += 1;
             }
             lex_state.get_next()?;
@@ -494,7 +498,7 @@ fn build_function<'b, 'r, 'c, 's:'c, 'm:'c>(
     // application := intent '(' arguments? S ')'  where 'function_name' is 'intent'
     assert!(lex_state.is_terminal("("));
     let mut function = function_name;
-    function.set_attribute_value(MATHML_FROM_NAME_ATTR, name(mathml));
+    function.set_attribute_value(MATHML_FROM_NAME_ATTR, as_str!(name(mathml)));
     while lex_state.is_terminal("(") {
         lex_state.get_next()?;
         if lex_state.is_terminal(")") {
@@ -548,11 +552,11 @@ fn lift_function_name<'m>(doc: Document<'m>, function_name: Element<'m>, childre
     if name(function_name) == "mi" || name(function_name) == "mn" {   // FIX -- really want to test for all leaves, but not "data-from-mathml"
         // simple/normal case of f(x,y)
         // don't want to say that this is a leaf -- doing so messes up because it potentially has children
-        set_mathml_name(function_name, as_text(function_name));
+        set_mathml_name(function_name, as_str!(as_text(function_name)));
         function_name.set_text("");
         function_name.replace_children(children);
         if name(function_name).find(|ch| ch!='_' && ch!='-').is_none() {
-            let properties = function_name.attribute_value(INTENT_PROPERTY).unwrap_or(":").to_owned();
+            let properties = function_name.attribute_value_interned(INTENT_PROPERTY).map_or(":".to_string(), |g| g.to_string());
             function_name.set_attribute_value(INTENT_PROPERTY, &(properties + "silent:"));
         }
         return function_name;
@@ -583,12 +587,13 @@ fn find_arg<'r, 'c, 's:'c, 'm:'c>(
     no_check_inside: bool) -> Result<Option<Element<'m>>> {
     // debug!("Looking for '{}' in\n{}", name, mml_to_string(mathml));
     if !skip_self &&
-        let Some(arg_val) = mathml.attribute_value("arg") {
+        let Some(arg_guard) = mathml.attribute_value_interned("arg") {
+            let arg_val = as_str!(arg_guard);
             // debug!("looking for '{}', found arg='{}'", name, arg_val);
             if name == arg_val {
                 // check to see if this mathml has an intent value -- if so the value is the value of its intent value
-                if let Some(intent_str) = mathml.attribute_value(INTENT_ATTR) {
-                    let mut lex_state = LexState::init(intent_str.trim())?;
+                if let Some(intent_guard) = mathml.attribute_value_interned(INTENT_ATTR) {
+                    let mut lex_state = LexState::init(as_str!(intent_guard).trim())?;
                     return Ok( Some( build_intent(rules_with_context, &mut lex_state, mathml, intent_offset)? ) );
                 } else {
                     return Ok( Some( rules_with_context.match_pattern::<Element<'m>>(mathml)? ) );
@@ -598,7 +603,7 @@ fn find_arg<'r, 'c, 's:'c, 'm:'c>(
             }
         }
 
-    if no_check_inside && mathml.attribute_value(INTENT_ATTR).is_some() {
+    if no_check_inside && mathml.attribute_value_interned(INTENT_ATTR).is_some() {
         return Ok(None);           // don't look inside 'intent'
     }
 
@@ -621,7 +626,7 @@ mod tests {
     #[allow(unused_imports)]
     use crate::init_logger;
     use log::debug;
-    use sxd_document::parser;
+    use sxd_document_no_unsafe::parser;
 
 
     fn test_intent(mathml: &str, target: &str, intent_error_recovery: &str) -> bool {

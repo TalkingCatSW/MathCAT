@@ -192,14 +192,21 @@ fn main() {
   //     </mrow>
   //   </math>";
 
+  // let expr = r#"
+  // <math xmlns="http://www.w3.org/1998/Math/MathML"><mi>S</mi><mi>I</mi><msup><mi>N</mi><mrow data-mjx-texclass="ORD"><mo>−</mo><mn>1</mn></mrow></msup></math>
+
+  //         "#;
   let expr = r#"
-<math>
-        <msub><mi mathvariant="normal">N</mi><mn>2</mn></msub>
-        <munderover><mo>&#x2192;</mo><mtext>Haber&#xA0;process</mtext><msub><mi mathvariant="normal">H</mi><mn>2</mn></msub></munderover>
-        <mi mathvariant="normal">N</mi>
-        <msub><mi mathvariant="normal">H</mi><mn>3</mn></msub>
+        <math>
+      <msup>
+        <mrow> </mrow>
+        <mn>  <?MarkedContent page="1" ?>111 </mn>
+      </msup>
+      <mi mathvariant="normal"><?MarkedContent page="1" ?>In</mi>
+      <mo lspace="0" rspace="0"><?MarkedContent page="1" ?>/ </mo>
+      <mi mathvariant="normal"> <?MarkedContent page="1" ?>Cd  </mi>
     </math>
-         "#;
+    "#;
   // let instant = Instant::now();
 
   // let rules_dir = "".to_string();    // Use MathCATRulesDir, potentially pointing to a zipped version

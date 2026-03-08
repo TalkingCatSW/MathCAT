@@ -1,7 +1,8 @@
 //! Useful functions for debugging and error messages.
 #![allow(clippy::needless_return)]
 
-use sxd_document::dom::{Element, ChildOfElement, Attribute};
+use sxd_document_no_unsafe::dom::{Element, ChildOfElement, Attribute};
+use sxd_document_no_unsafe::{as_str, as_qname};
 
 // #[allow(dead_code)]
 // pub fn pp_doc(doc: &Document) {
@@ -27,16 +28,16 @@ pub fn format_element(e: Element, indent: usize) -> String {
     // };
     // let namespace = namespace.as_str();
     let namespace = "";
-    let mut answer = format!("{:in$}<{ns}{name}{attrs}>", " ", in=2*indent, ns=namespace, name=e.name().local_part(), attrs=format_attrs(&e.attributes()));
+    let mut answer = format!("{:in$}<{ns}{name}{attrs}>", " ", in=2*indent, ns=namespace, name=as_qname!(e.name()).local_part(), attrs=format_attrs(&e.attributes()));
     let children = e.children();
     let has_element = children.iter().find(|&&c| matches!(c, ChildOfElement::Element(_x)));
     if has_element.is_none() {
         // print text content
         let content = children.iter()
-                .map(|c| if let ChildOfElement::Text(t) = c {t.text()} else {""})
-                .collect::<Vec<&str>>()
+                .map(|c| if let ChildOfElement::Text(t) = c { let _tg = t.text(); as_str!(_tg).to_string()} else {String::new()})
+                .collect::<Vec<String>>()
                 .join("");
-        return format!("{}{}</{}{}>\n", answer, &handle_special_chars(&content), namespace, e.name().local_part());
+        return format!("{}{}</{}{}>\n", answer, &handle_special_chars(&content), namespace, as_qname!(e.name()).local_part());
         // for child in children {
         //     if let ChildOfElement::Text(t) = child {
         //         return format!("{}{}</{}{}>\n", answer, &make_invisible_chars_visible(t.text()), namespace, e.name().local_part());
@@ -51,7 +52,7 @@ pub fn format_element(e: Element, indent: usize) -> String {
             }
         }
     }
-    return answer + &format!("{:in$}</{ns}{name}>\n", " ", in=2*indent, ns=namespace, name=e.name().local_part());
+    return answer + &format!("{:in$}</{ns}{name}>\n", " ", in=2*indent, ns=namespace, name=as_qname!(e.name()).local_part());
 
     // Use the &#x....; representation for invisible chars when printing
 }
@@ -60,7 +61,7 @@ pub fn format_element(e: Element, indent: usize) -> String {
 pub fn format_attrs(attrs: &[Attribute]) -> String {
     let mut result = String::new();
     for attr in attrs {
-        result += format!(" {}='{}'", attr.name().local_part(), &handle_special_chars(attr.value())).as_str();
+        result += format!(" {}='{}'", as_qname!(attr.name()).local_part(), &handle_special_chars(as_str!(attr.value()))).as_str();
     }
     result
 }
@@ -517,11 +518,11 @@ fn need_quotes(string: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sxd_document::dom::{ChildOfElement, ChildOfRoot};
-    use sxd_document::parser;
+    use sxd_document_no_unsafe::dom::{ChildOfElement, ChildOfRoot};
+    use sxd_document_no_unsafe::parser;
 
     /// helper function
-    fn first_element(package: &sxd_document::Package) -> Element<'_> {
+    fn first_element(package: &sxd_document_no_unsafe::Package) -> Element<'_> {
         let doc = package.as_document();
         for child in doc.root().children() {
             if let ChildOfRoot::Element(e) = child {
@@ -618,7 +619,7 @@ mod tests {
         use sxd_xpath::{Factory, Value};
 
         let package = parser::parse("<math><mi>𝞪</mi></math>").unwrap();
-        let xpath = Factory::new().build("string(/math/mi)").unwrap().unwrap();
+        let xpath = Factory::new().build("string(/math/mi)").unwrap();
         let context = sxd_xpath::Context::new();
 
         let value = xpath.evaluate(&context, first_element(&package)).unwrap();
@@ -634,7 +635,7 @@ mod tests {
         use sxd_xpath::{Factory, Value};
 
         let package = parser::parse("<math><mi>&#x1d7aa;</mi></math>").unwrap();
-        let xpath = Factory::new().build("string(/math/mi)").unwrap().unwrap();
+        let xpath = Factory::new().build("string(/math/mi)").unwrap();
         let context = sxd_xpath::Context::new();
 
         let value = xpath.evaluate(&context, first_element(&package)).unwrap();
@@ -653,7 +654,6 @@ mod tests {
         let package = parser::parse(xml).unwrap();
         let xpath = Factory::new()
             .build("string(/m:math/m:mi)")
-            .unwrap()
             .unwrap();
         let mut context = sxd_xpath::Context::new();
         context.set_namespace("m", "http://www.w3.org/1998/Math/MathML");
@@ -674,7 +674,6 @@ mod tests {
         let package = parser::parse(xml).unwrap();
         let xpath = Factory::new()
             .build("string(/m:math/m:mi)")
-            .unwrap()
             .unwrap();
         let mut context = sxd_xpath::Context::new();
         context.set_namespace("m", "http://www.w3.org/1998/Math/MathML");
@@ -693,7 +692,7 @@ mod tests {
 
         let xml = "<math xmlns=\"http://www.w3.org/1998/Math/MathML\"><mi>𝞪</mi></math>";
         let package = parser::parse(xml).unwrap();
-        let xpath = Factory::new().build("/m:math/m:mi/text()").unwrap().unwrap();
+        let xpath = Factory::new().build("/m:math/m:mi/text()").unwrap();
         let mut context = sxd_xpath::Context::new();
         context.set_namespace("m", "http://www.w3.org/1998/Math/MathML");
 
@@ -702,8 +701,8 @@ mod tests {
             Value::Nodeset(nodes) => {
                 let ordered = nodes.document_order();
                 let node = ordered.first().expect("Expected one text node");
-                let text = node.text().expect("Expected text node");
-                assert_eq!(text.text(), "𝞪");
+                let text = node.clone().text().expect("Expected text node");
+                assert_eq!(as_str!(text.text()), "𝞪");
                 assert_eq!(ordered.len(), 1);
             }
             _ => panic!("Expected nodeset value from xpath"),

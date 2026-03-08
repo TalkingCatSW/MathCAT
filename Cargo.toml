@@ -15,11 +15,13 @@ exclude = ["src/main.rs", "docs", "PythonScripts"]    # should have "Rules/", bu
 "include-zip" = []
 "enable-logs" = ["android_logger"]
 "tts" = [ "natural-tts" ]
-
+# Use guard types instead of unsafe transmute in sxd-document/sxd-xpath
+# The local sxd-document fork is always guard-based; only sxd-xpath needs the feature flag
+"no-unsafe" = ["sxd-document-no-unsafe/no-unsafe", "sxd-xpath/no-unsafe"]
 
 [dependencies]
-sxd-document = "0.3"
-sxd-xpath = "0.4"
+sxd-document-no-unsafe = { path = "../sxd-document", package = "sxd-document-no-unsafe" }
+sxd-xpath = { path = "../sxd-xpath-no-unsafe", package = "sxd-xpath-nounsafe" }
 yaml-rust = "0.4"
 # yaml-rust = { version = "0.11", package = "yaml-rust2" }
 strum = "0.27.2"
