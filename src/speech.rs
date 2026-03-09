@@ -9,7 +9,7 @@ use std::cell::{RefCell, RefMut};
 use std::sync::LazyLock;
 use sxd_document::dom::{ChildOfElement, Document, Element};
 use sxd_document::{Package, QName};
-use sxd_document::{as_str, as_opt_str, as_qname};
+use sxd_document::{as_str, as_qname};
 use sxd_xpath::context::Evaluation;
 use sxd_xpath::{Factory, Value, XPath};
 use sxd_xpath::nodeset::Node;
@@ -148,7 +148,7 @@ fn speak_rules(rules: &'static std::thread::LocalKey<RefCell<SpeechRules>>, math
         if !rules_with_context.nav_node_id.is_empty() {
             // See https://github.com/NSoiffer/MathCAT/issues/174 for why we can just start the speech at the nav node
             let raw_intent_attr = mathml.attribute_value("data-intent-property");
-            let intent_attr = as_opt_str!(raw_intent_attr).unwrap_or_default();
+            let intent_attr = raw_intent_attr.as_deref().unwrap_or_default();
             if let Some(start) = speech_string.find("[[") {
                 match speech_string[start+2..].find("]]") {
                     None => bail!("Internal error: looking for '[[...]]' during navigation -- only found '[[' in '{}'", speech_string),
@@ -2429,7 +2429,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                     self.context_stack.push(pattern.var_defs.clone(), mathml)?;
                 }
                 let result = if self.nav_node_offset > 0 &&
-                            self.nav_node_id == as_opt_str!(mathml.attribute_value("id")).unwrap_or_default() && is_leaf(mathml) {
+                            self.nav_node_id == mathml.attribute_value("id").as_deref().unwrap_or_default() && is_leaf(mathml) {
                     let ch = crate::canonicalize::as_text(mathml).chars().nth(self.nav_node_offset-1).unwrap_or_default();
                     let ch = self.replace_single_char(ch, mathml)?;
                     // debug!("find_match: ch={} from '{}'; matched pattern name/tag: {}/{} with nav_node_offset={}",
@@ -2448,7 +2448,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
                         if self.nav_node_id.is_empty() {
                             Ok( Some(s) )
                         } else {
-                            if self.nav_node_id == as_opt_str!(mathml.attribute_value("id")).unwrap_or_default() {debug!("Matched pattern name/tag: {}/{}", pattern.pattern_name, pattern.tag_name)};
+                            if self.nav_node_id == mathml.attribute_value("id").as_deref().unwrap_or_default() {debug!("Matched pattern name/tag: {}/{}", pattern.pattern_name, pattern.tag_name)};
                             Ok ( Some(self.nav_node_adjust(s, mathml)) )
                         }
                     },
@@ -2490,7 +2490,7 @@ impl<'c, 's:'c, 'r, 'm:'c> SpeechRulesWithContext<'c, 's,'m> {
       if let Some(id) = mathml.attribute_value("id") &&
          self.nav_node_id == id {
         let raw_offset = mathml.attribute_value(crate::navigate::ID_OFFSET);
-        let offset = as_opt_str!(raw_offset).unwrap_or("0");
+        let offset = raw_offset.as_deref().unwrap_or("0");
         debug!("nav_node_adjust: id/name='{}/{}' offset?='{}'", id, name(mathml),
                self.nav_node_offset.to_string().as_str() == offset
         );

@@ -6,7 +6,7 @@
 #![allow(clippy::needless_return)]
 
 use sxd_document::dom::{Element, Document, ChildOfElement};
-use sxd_document::{as_str, as_opt_str};
+use sxd_document::as_str;
 use crate::prefs::PreferenceManager;
 use crate::speech::SpeechRulesWithContext;
 use crate::canonicalize::{as_element, as_text, name, create_mathml_element, set_mathml_name, INTENT_ATTR, MATHML_FROM_NAME_ATTR};
@@ -94,7 +94,7 @@ pub fn simplify_fixity_properties(properties: &str) -> String {
 /// Given the intent add the fixity property for the intent if it isn't given (and one exists)
 fn add_fixity(intent: Element) {
     let raw_properties = intent.attribute_value(INTENT_PROPERTY);
-    let properties = as_opt_str!(raw_properties).unwrap_or_default();
+    let properties = raw_properties.as_deref().unwrap_or_default();
     if properties.split(":").all(|property| !FIXITIES.contains(property)) {
         let intent_name = name(intent);
         crate::definitions::SPEECH_DEFINITIONS.with(|definitions| {
@@ -132,17 +132,17 @@ pub fn add_fixity_children(intent: Element) -> Element {
             return mathml;
         }
         // we also exclude fixity on mtable because they mess up the counts (see 'en::mtable::unknown_mtable_property')
-        if as_opt_str!(mathml.attribute_value(MATHML_FROM_NAME_ATTR)).unwrap_or_default() == "mtable" {
+        if mathml.attribute_value(MATHML_FROM_NAME_ATTR).as_deref().unwrap_or_default() == "mtable" {
             return mathml;
         }
         let doc = mathml.document();
         let raw_properties = mathml.attribute_value(INTENT_PROPERTY);
-        let properties = as_opt_str!(raw_properties).unwrap_or_default();
+        let properties = raw_properties.as_deref().unwrap_or_default();
         let fixity = properties.rsplit(':').find(|&property| FIXITIES.contains(property)).unwrap_or_default();
         let intent_name = as_str!(name(mathml));
     
         let raw_op_id = mathml.attribute_value("id");
-        let op_name_id = as_opt_str!(raw_op_id).unwrap_or("new-id");
+        let op_name_id = raw_op_id.as_deref().unwrap_or("new-id");
         match fixity {
             "infix" => {
                 let mut new_children = Vec::with_capacity(2*children.len()-1);
@@ -427,7 +427,7 @@ fn build_intent<'b, 'r, 'c, 's:'c, 'm:'c>(rules_with_context: &'r mut SpeechRule
             let mathml_name = name(mathml);
             let raw_intent_attr = mathml.attribute_value(INTENT_ATTR);
             intent.set_attribute_value(MATHML_FROM_NAME_ATTR, 
-                if word == as_opt_str!(raw_intent_attr).unwrap_or_default() {as_str!(mathml_name)} else {leaf_name});
+                if word == raw_intent_attr.as_deref().unwrap_or_default() {as_str!(mathml_name)} else {leaf_name});
             intent.set_text(word);       // '-' and '_' get removed by the rules.
             if let Some(id) = mathml.attribute_value("id") {
                 intent.set_attribute_value("id", &format!("{}-literal-{}", id, intent_offset));
@@ -558,7 +558,7 @@ fn lift_function_name<'m>(doc: Document<'m>, function_name: Element<'m>, childre
         function_name.set_text("");
         function_name.replace_children(children);
         if name(function_name).find(|ch: char| ch!='_' && ch!='-').is_none() {
-            let properties = as_opt_str!(function_name.attribute_value(INTENT_PROPERTY)).unwrap_or(":").to_owned();
+            let properties = function_name.attribute_value(INTENT_PROPERTY).as_deref().unwrap_or(":").to_owned();
             function_name.set_attribute_value(INTENT_PROPERTY, &(properties + "silent:"));
         }
         return function_name;

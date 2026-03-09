@@ -11,7 +11,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use sxd_document::dom::{Element, Document, ChildOfElement, Attribute};
 use sxd_document::QName;
-use sxd_document::{as_str, as_opt_str, as_qname};
+use sxd_document::{as_str, as_qname};
 
 #[cfg(not(feature = "no-unsafe"))]
 pub type NameStr<'a> = &'a str;
@@ -298,7 +298,7 @@ impl<'a, 'op:'a> StackInfo<'a, 'op> {
 		let children = self.mrow.children();
 		for &child in children.iter().rev() {
 			let child = as_element(child);
-			if let Some(value) = as_opt_str!(child.attribute_value(CHANGED_ATTR))
+			if let Some(value) = child.attribute_value(CHANGED_ATTR).as_deref()
 				&& value == "empty_content" {
 					continue;
 				}
@@ -398,7 +398,7 @@ pub fn get_presentation_element(element: Element) -> (usize, Element) {
 	assert_eq!(name(element), "semantics");
 	let children = element.children();
 	if let Some( (i, child) ) = children.iter().enumerate().find(|&(_, &child)|
-			if let Some(encoding) = as_opt_str!(as_element(child).attribute_value("encoding")) {
+			if let Some(encoding) = as_element(child).attribute_value("encoding").as_deref() {
 				encoding == "MathML-Presentation"
 			} else {
 				false
@@ -866,7 +866,7 @@ impl CanonicalizeContext {
 					}
 					return Some(mathml);
 				} else if OPERATORS.get(as_str!(text)).is_some() {
-					if  let Some(intent_value) = as_opt_str!(mathml.attribute_value(INTENT_ATTR)) {
+					if  let Some(intent_value) = mathml.attribute_value(INTENT_ATTR).as_deref() {
 						// if it is a unit, it might be seconds, minutes, feet, ... not an operator
 						if intent_value.contains(":unit") {
 							return Some(mathml);
@@ -1059,7 +1059,7 @@ impl CanonicalizeContext {
 
 				// normalize width ems
 				let width_raw = mathml.attribute_value("width");
-				let width = as_opt_str!(width_raw).unwrap_or("0em");
+				let width = width_raw.as_deref().unwrap_or("0em");
 				let normalized_width = crate::xpath_functions::FontSizeGuess::em_from_value(width);
 				mathml.set_attribute_value("data-width", &normalized_width.to_string());
 				return Some(mathml);
@@ -1243,7 +1243,7 @@ impl CanonicalizeContext {
 				if child == new_presentation {
 					continue;
 				}
-				let attr_name = match as_opt_str!(child.attribute_value("encoding")) {
+				let attr_name = match child.attribute_value("encoding").as_deref() {
 					Some(encoding_name) => format!("data-{}-{}", child_name, encoding_name.replace('/', "_slash_")),
 					None => format!("data-{child_name}"),		// probably shouldn't happen
 				};
@@ -1272,12 +1272,12 @@ impl CanonicalizeContext {
 				return false;
 			}
 
-			if let Some(intent_value) = as_opt_str!(mathml.attribute_value(INTENT_ATTR))
+			if let Some(intent_value) = mathml.attribute_value(INTENT_ATTR).as_deref()
 				&& (intent_value != "ratio" || !intent_value.starts_with('_')) {
 					return false;
 				}
 
-			if let Some(value) = as_opt_str!(mathml.attribute_value("data-mjx-texclass"))
+			if let Some(value) = mathml.attribute_value("data-mjx-texclass").as_deref()
 				&& value ==  "PUNCT" {
 					mathml.remove_attribute("data-mjx-texclass");
 					mathml.set_attribute_value(SPACE_AFTER, "true");	// signal to at least Nemeth rules that this is punctuation
@@ -1359,7 +1359,7 @@ impl CanonicalizeContext {
 			} else {
 				mathml
 			};
-			if let Some(width) = as_opt_str!(mpadded.attribute_value("width")) {
+			if let Some(width) = mpadded.attribute_value("width").as_deref() {
 				if width != "0" {
 					return false;
 				}
@@ -1801,12 +1801,12 @@ impl CanonicalizeContext {
 		fn convert_mfenced_to_mrow(mfenced: Element) -> Element {
 			// The '<'/'>' replacements are because WIRIS uses them out instead of the correct chars in its template
 			let open_raw = mfenced.attribute_value("open");
-			let open = as_opt_str!(open_raw).unwrap_or("(").replace('<', "⟨");
+			let open = open_raw.as_deref().unwrap_or("(").replace('<', "⟨");
 			let close_raw = mfenced.attribute_value("close");
-			let close = as_opt_str!(close_raw).unwrap_or(")").replace('>', "⟩");
+			let close = close_raw.as_deref().unwrap_or(")").replace('>', "⟩");
 			// debug!("open={}, close={}", open, close);
 			let separators_raw = mfenced.attribute_value("separators");
-			let mut separators = as_opt_str!(separators_raw).unwrap_or(",").chars();
+			let mut separators = separators_raw.as_deref().unwrap_or(",").chars();
 			set_mathml_name(mfenced, "mrow");
 			mfenced.remove_attribute("open");
 			mfenced.remove_attribute("close");
@@ -1956,7 +1956,7 @@ impl CanonicalizeContext {
 				// 		i, whitespace, previous_mtext_with_width.is_some(), mml_to_string(child));
 				if is_child_whitespace {
 					// update the running total of whitespace
-					let child_width = as_opt_str!(child.attribute_value("data-width")).unwrap_or("0")
+					let child_width = child.attribute_value("data-width").as_deref().unwrap_or("0")
 																					.parse::<f64>().unwrap_or(0.0)	;
 					whitespace = match whitespace {
 						None => Some(child_width),
@@ -1993,7 +1993,7 @@ impl CanonicalizeContext {
 				if children.len() == 1 {
 					// only child -- check to see if we need to set the space-width
 					let child = as_element(children[0]);
-					let child_width = as_opt_str!(child.attribute_value("data-width")).unwrap_or("0").parse::<f64>().unwrap_or(0.0);
+					let child_width = child.attribute_value("data-width").as_deref().unwrap_or("0").parse::<f64>().unwrap_or(0.0);
 					if (child_width - ws).abs() > 0.001 {
 						ws += child_width;
 						child.set_attribute_value("data-following-space-width", ws.to_string().as_str());
@@ -3156,7 +3156,7 @@ impl CanonicalizeContext {
 
 			let mi_text = as_str!(as_text(mi));
 			let variant_raw = mi.attribute_value("mathvariant");
-			let variant = as_opt_str!(variant_raw);
+			let variant = variant_raw.as_deref();
 
 			if names.contains(mi_text) {
 				return mi;		// avoid mapping mathvariant for function names
@@ -3490,7 +3490,7 @@ impl CanonicalizeContext {
 	
 		// if a form has been given, that takes precedence
 		let form_raw = mo_node.attribute_value("form");
-		let form = as_opt_str!(form_raw);
+		let form = form_raw.as_deref();
 		let op_type =  match form {
 			None => match context {
 				None => OperatorTypes::POSTFIX,		// what compute_type_from_position returns when the other args to this are all None
@@ -3694,7 +3694,7 @@ impl CanonicalizeContext {
 	
 		// debug!("   in is_likely_chemical_state: '{}'?",element_summary(node));
 		let node_chem_raw = node.attribute_value(MAYBE_CHEMISTRY);
-		let node_chem_likelihood = as_opt_str!(node_chem_raw);
+		let node_chem_likelihood = node_chem_raw.as_deref();
 		if node.attribute(MAYBE_CHEMISTRY).is_none() {
 			return FunctionNameCertainty::True;
 		}
@@ -4401,7 +4401,7 @@ impl CanonicalizeContext {
 								} else {
 									OperatorPair{ ch: op_ch("\u{2062}"), op: *IMPLIED_TIMES, _phantom: PhantomData }
 								};
-						if let Some(attr_val) = as_opt_str!(base_of_child.attribute_value(CHANGED_ATTR))
+						if let Some(attr_val) = base_of_child.attribute_value(CHANGED_ATTR).as_deref()
 							&& attr_val == "data-was-mo" {
 								// it really should be an operator
 								base_of_child.remove_attribute(CHANGED_ATTR);

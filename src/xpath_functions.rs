@@ -18,7 +18,7 @@
 //!   The result will be printed to standard output and the result returned so that `DEBUG` does not affect the computation.    
 
 use sxd_document::dom::{Element, ChildOfElement};
-use sxd_document::{as_str, as_opt_str};
+use sxd_document::as_str;
 use sxd_xpath::{Value, Context, context, function::*, nodeset::*};
 use crate::definitions::{Definitions, SPEECH_DEFINITIONS, BRAILLE_DEFINITIONS};
 use regex::Regex;
@@ -67,7 +67,7 @@ pub fn validate_one_node<'n>(nodes: Nodeset<'n>, func_name: &str) -> Result<Node
 
 // Return true if the element's name is 'name'
 fn is_tag(e: Element, tag_name: &str) -> bool {
-    return name(e) == tag_name || as_opt_str!(e.attribute_value(MATHML_FROM_NAME_ATTR)).unwrap_or_default() == tag_name;
+    return name(e) == tag_name || e.attribute_value(MATHML_FROM_NAME_ATTR).as_deref().unwrap_or_default() == tag_name;
 }
 
 #[allow(non_snake_case)]

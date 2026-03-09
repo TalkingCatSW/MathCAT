@@ -2,7 +2,7 @@
 use strum_macros::Display;
 use sxd_document::dom::{Element, ChildOfElement};
 use sxd_document::Package;
-use sxd_document::{as_str, as_opt_str};
+use sxd_document::as_str;
 use crate::definitions::SPEECH_DEFINITIONS;
 use crate::errors::*;
 use crate::pretty_print::mml_to_string;
@@ -328,7 +328,7 @@ pub fn get_navigation_node_from_braille_position(mathml: Element, position: usiz
     /// 'node' is the current node we are on inside of 'mathml'
     fn find_navigation_node<'e>(mathml: Element<'e>, node: Element<'e>, target_position: usize) -> Result<SearchState<'e>> {
         let raw_node_id = node.attribute_value("id");
-        let node_id = match as_opt_str!(raw_node_id) {
+        let node_id = match raw_node_id.as_deref() {
             Some(id) => id,
             None => bail!("'id' is not present on mathml: {}", mml_to_string(node)),
         };
@@ -2349,7 +2349,7 @@ impl BrailleChars {
             Regex::new(r"(?P<face>[SB𝔹TIR]*)(?P<lang>[EDGVHU]?)(?P<cap>C?)(?P<letter>L?)(?P<num>[N]?)(?P<char>.)").unwrap()
         });
         let raw_math_variant = node.attribute_value("mathvariant");
-        let math_variant = as_opt_str!(raw_math_variant);
+        let math_variant = raw_math_variant.as_deref();
         let  attr_typeface = match math_variant {
             None => "R",
             Some(variant) => match variant {
@@ -2425,7 +2425,7 @@ impl BrailleChars {
         });
     
         let raw_math_variant = node.attribute_value("mathvariant");
-        let math_variant = as_opt_str!(raw_math_variant);
+        let math_variant = raw_math_variant.as_deref();
         let text = BrailleChars::substring(as_str!(as_text(node)), &text_range);
         let mut braille_chars = braille_replace_chars(&text, node)?;
 
@@ -2479,7 +2479,7 @@ impl BrailleChars {
         });
     
         let raw_math_variant = node.attribute_value("mathvariant");
-        let math_variant = as_opt_str!(raw_math_variant);
+        let math_variant = raw_math_variant.as_deref();
         let text = BrailleChars::substring(as_str!(as_text(node)), &text_range);
         let text = add_separator(text);
 
@@ -2635,7 +2635,7 @@ impl BrailleChars {
                     true      
                 },
                 "menclose" => {
-                    if let Some(notation) = as_opt_str!(node.attribute_value("notation")) {
+                    if let Some(notation) = node.attribute_value("notation").as_deref() {
                         if notation != "bottom" || notation != "box" {
                             return false;
                         }

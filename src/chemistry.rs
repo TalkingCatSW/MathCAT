@@ -37,7 +37,7 @@
 
 use sxd_document::dom::{Element, Document, ChildOfElement};
 #[allow(unused_imports)]
-use sxd_document::{as_str, as_opt_str, as_qname};
+use sxd_document::{as_str, as_qname};
 use crate::canonicalize::*;
 use crate::canonicalize::NameStr;
 use crate::pretty_print::mml_to_string;
@@ -90,7 +90,7 @@ fn is_chem_equation_arrow(ch: char) -> bool {
 
 // Returns true if the 'property' (should have ":") is in the intent
 fn has_chem_intent(mathml: Element, property: &str) -> bool {
-    if let Some(intent) = as_opt_str!(mathml.attribute_value(INTENT_ATTR)) {
+    if let Some(intent) = mathml.attribute_value(INTENT_ATTR).as_deref() {
         let head = intent.split('(').next().unwrap();
         return head.contains(property);
     }
@@ -212,7 +212,7 @@ fn clean_mrow_children_restructure_pass<'a>(old_children: &[Element<'a>]) -> Opt
                     likely_chem_equation_operator(child);   // need to mark MAYBE_CHEMISTRY for CHEMICAL_BOND tests
                 }
             } else if child_name == "mrow" &&
-                      let Some(latex_value) = as_opt_str!(child.attribute_value("data-latex")) &&
+                      let Some(latex_value) = child.attribute_value("data-latex").as_deref() &&
                       latex_value == r"\mathrel{\longrightleftharpoons}" {
                 child.set_attribute_value("data-unicode", "\u{1f8d2}");
                 child.set_attribute_value(MAYBE_CHEMISTRY, "2");    // same as is_hack_for_missing_arrows()
@@ -358,7 +358,7 @@ pub fn convert_leaves_to_chem_elements(mathml: Element) -> Option<Vec<Element>> 
         let chem_token_string = vec![token_string.as_bytes()[0], second_element_text.as_bytes()[0]];
         if let Some(chem_element) = get_chem_element(doc, &chem_token_string, 2) {
             chem_element.set_text(as_str!(as_text(chem_element)));
-            chem_element.set_attribute_value(MAYBE_CHEMISTRY, as_opt_str!(chem_element.attribute_value(MAYBE_CHEMISTRY)).unwrap());
+            chem_element.set_attribute_value(MAYBE_CHEMISTRY, chem_element.attribute_value(MAYBE_CHEMISTRY).as_deref().unwrap());
             chem_element.set_attribute_value(MERGED_TOKEN, "true");
             second_element.remove_from_parent();
             return Some(vec![chem_element]);
@@ -437,7 +437,7 @@ pub fn scan_and_mark_chemistry(mathml: Element) -> bool {
     let child = as_element(mathml.children()[0]);
     // debug!("scan_and_mark_chemistry:\n{}", mml_to_string(child));
     assert_eq!(name(mathml), "math");
-    let is_chemistry = if let Some(latex) = as_opt_str!(mathml.attribute_value("data-latex")) {
+    let is_chemistry = if let Some(latex) = mathml.attribute_value("data-latex").as_deref() {
         // MathJax v4 includes this really useful info -- if it starts \ce -- we have Chemistry
         // need to determine if it is an equation or a formula
         latex.trim_start().starts_with(r"\ce") 
@@ -476,7 +476,7 @@ pub fn scan_and_mark_chemistry(mathml: Element) -> bool {
 
 // returns the marked attr value or None
 fn get_marked_value(mathml: Element) -> Option<isize> {
-    if let Some(value) = as_opt_str!(mathml.attribute_value(MAYBE_CHEMISTRY)) {
+    if let Some(value) = mathml.attribute_value(MAYBE_CHEMISTRY).as_deref() {
         return Some(value.parse().unwrap());
     } else {
         return None;
@@ -572,7 +572,7 @@ fn is_changed_after_unmarking_chemistry(mathml: Element) -> bool {
             // let parent = get_parent(mathml);
             // debug!("After merge_element: -- parent{}", mml_to_string(parent));
 
-        } else if let Some(changed_value) = as_opt_str!(mathml.attribute_value(CHANGED_ATTR)) &&
+        } else if let Some(changed_value) = mathml.attribute_value(CHANGED_ATTR).as_deref() &&
                   changed_value == ADDED_ATTR_VALUE &&
                   name(mathml) != "mtext" {  // a hack fix for #477 (chem never modifies mtext, so this is ok)
             mathml.remove_from_parent();
@@ -655,7 +655,7 @@ fn is_changed_after_unmarking_chemistry(mathml: Element) -> bool {
             }
         }
         if name(mathml) == "mrow" {
-            if let Some(changed_value) = as_opt_str!(mathml.attribute_value(CHANGED_ATTR)) {
+            if let Some(changed_value) = mathml.attribute_value(CHANGED_ATTR).as_deref() {
                 // we added an mrow, we can remove it -- but this might be already processed which is the case if "data-id-added" is true (exists)
                 if changed_value == ADDED_ATTR_VALUE && mathml.attribute("data-id-added").is_none() {
                     // mrows get added for several reasons. One of them is to canonicalize elements like msqrt that can have 1 or more children;
@@ -707,7 +707,7 @@ fn is_changed_after_unmarking_chemistry(mathml: Element) -> bool {
             if preceding_children.is_empty() ||
                !(name(parent) == "mmultiscripts" ||
                 (name(parent) == "mrow" && parent.attribute_value(CHANGED_ATTR).is_some() &&
-                 as_opt_str!(parent.attribute_value(CHANGED_ATTR)).unwrap() == ADDED_ATTR_VALUE)) {
+                 parent.attribute_value(CHANGED_ATTR).as_deref().unwrap() == ADDED_ATTR_VALUE)) {
                     bail!("Internal error: {} should not have been split'", mml_to_string(mathml));
             }
         }
@@ -1711,7 +1711,7 @@ pub fn likely_chem_element(mathml: Element) -> isize {
     } else if is_chemical_element(mathml) {
         // single letter = 1; single letter with mathvarinat="normal" = 2; double = 3 -- all elements are ASCII
         return (if text.len() == 1 {
-            if as_opt_str!(mathml.attribute_value("mathvariant")).unwrap_or_default() == "normal" {2} else {1}
+            if mathml.attribute_value("mathvariant").as_deref().unwrap_or_default() == "normal" {2} else {1}
         } else {
             3
         }) as isize;

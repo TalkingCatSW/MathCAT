@@ -12,7 +12,7 @@ use regex::{Captures, Regex};
 use sxd_document::dom::{Element, Document, ChildOfRoot, ChildOfElement, Attribute};
 use sxd_document::parser;
 use sxd_document::Package;
-use sxd_document::{as_str, as_opt_str, as_qname};
+use sxd_document::{as_str, as_qname};
 
 use crate::canonicalize::{as_element, name};
 use crate::shim_filesystem::{find_all_dirs_shim, find_files_in_dir_that_ends_with_shim};
@@ -836,7 +836,7 @@ pub fn trim_element(e: Element, allow_structure_in_leaves: bool) {
             let child_text = match child {
                 ChildOfElement::Element(child) => {
                     if name(child) == "mglyph" {
-                        as_opt_str!(child.attribute_value("alt")).unwrap_or("").to_string()
+                        child.attribute_value("alt").as_deref().unwrap_or("").to_string()
                     } else {
                         gather_text(child)
                     }
