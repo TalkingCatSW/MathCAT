@@ -17,6 +17,16 @@ jobs:
     - name: Run tests
       run: cargo test --verbose
 
+  build-no-unsafe:
+    name: Build and Test (no-unsafe)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build with no-unsafe
+      run: cargo build --features no-unsafe --verbose
+    - name: Run tests with no-unsafe
+      run: cargo test --features no-unsafe --verbose
+
   clippy:
     name: Clippy/Lint check
     runs-on: ubuntu-latest
@@ -24,6 +34,14 @@ jobs:
     - uses: actions/checkout@v3
     - name: run clippy
       run: cargo clippy
+
+  clippy-no-unsafe:
+    name: Clippy/Lint check (no-unsafe)
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: run clippy with no-unsafe
+      run: cargo clippy --features no-unsafe
 
   zip-rules:
     name: zip up the rules directory
