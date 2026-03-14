@@ -125,14 +125,14 @@ impl IsNode {
 
         fn coe_to_str(coe: ChildOfElement<'_>) -> String {
             let element_node = coe.element();
-            if let Some(e) = element_node {
-                if e.children().len() == 1 {
-                    let text_node = e.children()[0];
-                    if let Some(t) = text_node.text() {
-                        return t.text().to_string();
-                    }
+            if let Some(e) = element_node
+                && e.children().len() == 1
+            {
+                let text_node = e.children()[0];
+                if let Some(t) = text_node.text() {
+                    return t.text().to_string();
                 }
-            }               
+            }
             return String::new();
         }
 

@@ -1276,6 +1276,7 @@ fn has_noble_element(elements: &[NameStr<'_>]) -> bool {
     return elements.iter().any(|e| NOBLE_ELEMENTS.contains(as_str!(*e)));
 }
 
+#[allow(clippy::manual_contains)]
 fn has_c_h_o(elements: &[NameStr<'_>]) -> bool {
     return elements.iter().any(|e| *e == "C") && elements.iter().any(|e| *e == "H") && elements.iter().any(|e| *e == "O");
 }
@@ -1318,6 +1319,8 @@ fn collect_elements(mrow: Element<'_>) -> Option<Vec<NameStr<'_>>> {
 
 /// check to make sure elements are ordered alphabetically
 /// Actually check Hill's system that puts 'C' followed by 'H' first if 'C' is present
+#[allow(clippy::op_ref)]
+#[allow(clippy::manual_contains)]
 fn is_alphabetical(elements: &[NameStr<'_>]) -> bool {
     assert!(!elements.len() > 1);   // already handled
     // debug!("is_alphabetical: {:?}", elements);
@@ -1436,7 +1439,7 @@ pub fn likely_adorned_chem_formula(mathml: Element) -> isize {
                 }
                 likelihood += likely_chem_superscript(pre_superscript);
             } else if pre_superscript_name == "mn" { // must have a pre-superscript (neutrons + protons)
-                if let Some(mass) = as_text(pre_superscript).parse::<u32>().ok() {
+                if let Ok(mass) = as_text(pre_superscript).parse::<u32>() {
                     // "drip line" is 1.5 * mass < 3.5 * mass -- it is possible to outside of this range, but VERY unlikely
                     // to avoid floating point, we multiply by 2 and compare to 3 and 7
                     if 3*atomic_number < 2*mass && 2*mass < 7*atomic_number {

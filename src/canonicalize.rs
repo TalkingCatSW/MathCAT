@@ -4551,7 +4551,7 @@ pub fn as_text(leaf_child: Element<'_>) -> NameStr<'_> {
 	if children.is_empty() {
 		cfg_if::cfg_if! {
 			if #[cfg(feature = "no-unsafe")] {
-				return sxd_document::InternedString::from_str("");
+				return sxd_document_no_unsafe::InternedString::from_str("");
 			} else {
 				return "";
 			}

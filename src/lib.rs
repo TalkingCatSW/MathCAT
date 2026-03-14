@@ -1,4 +1,5 @@
 #![allow(clippy::needless_return)]
+#![allow(clippy::needless_option_as_deref)]
 
 //! A library for generating speech and braille from MathML
 //! 
